@@ -229,7 +229,12 @@ export default function App() {
       )}
 
       {tab === "Schedule" && (
-        <Schedule games={boot.games} bets={boot.bets} current={boot.current} />
+        <Schedule
+          games={boot.games}
+          bets={boot.bets}
+          valuations={boot.valuations}
+          current={boot.current}
+        />
       )}
 
       {tab === "Sync" && (

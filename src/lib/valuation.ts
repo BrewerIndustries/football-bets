@@ -1,6 +1,7 @@
-import type { Bet } from "./types";
+import type { Bet, Game } from "./types";
 import type { MarketPrice } from "./db";
 import { americanProfitCents } from "./money";
+import { resultFromScore } from "./grade";
 
 /**
  * The three numbers a bettor actually wants on every row:
@@ -22,6 +23,12 @@ export type Valuation = {
   /** The per-contract price behind the valuation, in cents. */
   priceCents: number | null;
   priceAt: string | null;
+  /**
+   * True when the game is over and the outcome is known, but the position has
+   * not been settled yet. The value shown is the settlement the score implies,
+   * not a market price.
+   */
+  pendingSettlement: boolean;
 };
 
 /** Profit if the bet wins — the "to win" figure books quote. */
@@ -34,7 +41,11 @@ export function toWinCents(bet: Bet): number {
   return 0;
 }
 
-export function valueBet(bet: Bet, prices: Map<string, MarketPrice>): Valuation {
+export function valueBet(
+  bet: Bet,
+  prices: Map<string, MarketPrice>,
+  game?: Game | null,
+): Valuation {
   const amountBetCents = bet.stakeCents;
   const win = toWinCents(bet);
 
@@ -48,7 +59,27 @@ export function valueBet(bet: Bet, prices: Map<string, MarketPrice>): Valuation 
       unrealizedCents: payout - amountBetCents - bet.feesCents,
       priceCents: null,
       priceAt: null,
+      pendingSettlement: false,
     };
+  }
+
+  // The game is over but the position has not settled yet — Kalshi settlements
+  // import on their own schedule. A closed market has no bid, so marking to the
+  // order book here would value every position at zero and show a winning bet
+  // as a total loss. The final score already decides it, so use that.
+  if (game?.completed) {
+    const decided = resultFromScore(bet, game);
+    if (decided) {
+      return {
+        amountBetCents,
+        toWinCents: win,
+        currentValueCents: decided.payoutCents,
+        unrealizedCents: decided.payoutCents - amountBetCents - bet.feesCents,
+        priceCents: null,
+        priceAt: null,
+        pendingSettlement: true,
+      };
+    }
   }
 
   const p = bet.kalshiTicker ? prices.get(bet.kalshiTicker) : undefined;
@@ -60,6 +91,7 @@ export function valueBet(bet: Bet, prices: Map<string, MarketPrice>): Valuation 
       unrealizedCents: null,
       priceCents: null,
       priceAt: null,
+      pendingSettlement: false,
     };
   }
 
@@ -85,6 +117,7 @@ export function valueBet(bet: Bet, prices: Map<string, MarketPrice>): Valuation 
       unrealizedCents: null,
       priceCents: null,
       priceAt: p.updatedAt,
+      pendingSettlement: false,
     };
   }
 
@@ -96,13 +129,19 @@ export function valueBet(bet: Bet, prices: Map<string, MarketPrice>): Valuation 
     unrealizedCents: currentValueCents - amountBetCents - bet.feesCents,
     priceCents: exitCents,
     priceAt: p.updatedAt,
+    pendingSettlement: false,
   };
 }
 
-export function valueAll(bets: Bet[], prices: MarketPrice[]): Record<string, Valuation> {
+export function valueAll(
+  bets: Bet[],
+  prices: MarketPrice[],
+  games: Game[] = [],
+): Record<string, Valuation> {
   const byTicker = new Map(prices.map((p) => [p.ticker, p]));
+  const byGame = new Map(games.map((g) => [g.id, g]));
   const out: Record<string, Valuation> = {};
-  for (const b of bets) out[b.id] = valueBet(b, byTicker);
+  for (const b of bets) out[b.id] = valueBet(b, byTicker, b.gameId ? byGame.get(b.gameId) : null);
   return out;
 }
 

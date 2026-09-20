@@ -37,7 +37,15 @@ export function provisionalResult(
   return g.status === "won" ? "winning" : g.status === "push" ? "tied" : "losing";
 }
 
-/** Shared decision logic; the callers decide whether it counts as final. */
+/**
+ * Shared decision logic; the callers decide whether it counts as final.
+ * Exported as `resultFromScore` for valuation, which needs the outcome of a
+ * finished game without caring who placed the bet or whether it has settled.
+ */
+export function resultFromScore(bet: Bet, game: Game): Grade | null {
+  return decide(bet, game);
+}
+
 function decide(bet: Bet, game: Game): Grade | null {
   if (game.homeScore === null || game.awayScore === null) return null;
 
