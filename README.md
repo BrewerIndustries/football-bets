@@ -22,6 +22,15 @@ same columns, with the market's subject in the team slot.
 
 (The write endpoints still exist for scripting; nothing in the UI calls them.)
 
+**The box score.** Each bet leads with a proper box score — away over home, team
+on the left and score hard right inside a fixed-width block, so the numbers form
+one clean column down the page instead of drifting with the length of each
+team's name. The backed team carries the weight (larger, bold, full ink); the
+leading score is bold. Row height is fixed so the two type sizes still sit on a
+shared grid. Beside it, a live detail like `14:14 - 2nd Quarter` is split so the
+period sits on the first line and the clock on the second, lining up with the
+two score rows.
+
 **Filtering and order.** Two toggles — **Live** (bets on a game in progress) and
 **Open** (not yet settled) — each carrying its own count, so an empty result is
 visible before you press rather than after; Live disables itself when nothing is
