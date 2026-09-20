@@ -4,8 +4,19 @@ import { Card, Empty, StatTile } from "./ui";
 import { EquityCurve, TeamBars, WeeklyPL } from "./Charts";
 import { fmtMoney, fmtPct } from "@/lib/money";
 import type { Stats } from "@/lib/stats";
+import type { openPortfolio } from "@/lib/valuation";
 
-export default function Dashboard({ stats }: { stats: Stats }) {
+type Portfolio = ReturnType<typeof openPortfolio>;
+
+export default function Dashboard({
+  stats,
+  portfolio,
+  pricedAt,
+}: {
+  stats: Stats;
+  portfolio: Portfolio;
+  pricedAt: string | null;
+}) {
   const t = stats.totals;
   const tone = t.netCents > 0 ? "pos" : t.netCents < 0 ? "neg" : "neutral";
 
@@ -47,6 +58,45 @@ export default function Dashboard({ stats }: { stats: Stats }) {
           sub={`${t.openBets} bet${t.openBets === 1 ? "" : "s"} still live`}
         />
       </div>
+
+      {/* Mark to market: only meaningful while positions are still trading. */}
+      {portfolio.priced > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <StatTile
+            label="Current value of open bets"
+            value={fmtMoney(portfolio.valueCents)}
+            sub={`${fmtMoney(portfolio.costCents)} in · ${portfolio.priced} position${
+              portfolio.priced === 1 ? "" : "s"
+            } priced${portfolio.unpriced ? ` · ${portfolio.unpriced} not trading` : ""}`}
+          />
+          <StatTile
+            label="Unrealized"
+            value={fmtMoney(portfolio.unrealizedCents, { sign: true })}
+            sub="If every open position were sold at the current bid"
+            tone={portfolio.unrealizedCents > 0 ? "pos" : portfolio.unrealizedCents < 0 ? "neg" : "neutral"}
+          />
+          <StatTile
+            label="Realized + unrealized"
+            value={fmtMoney(t.netCents + portfolio.unrealizedCents, { sign: true })}
+            sub={
+              pricedAt
+                ? `Priced ${new Date(pricedAt).toLocaleTimeString(undefined, {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}`
+                : "No live prices yet"
+            }
+            tone={
+              t.netCents + portfolio.unrealizedCents > 0
+                ? "pos"
+                : t.netCents + portfolio.unrealizedCents < 0
+                  ? "neg"
+                  : "neutral"
+            }
+          />
+        </div>
+      )}
 
       <Card
         title="Net by week"

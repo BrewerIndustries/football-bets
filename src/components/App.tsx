@@ -9,6 +9,7 @@ import LiveNow from "./LiveNow";
 import { Button, Card, Empty } from "./ui";
 import type { Stats } from "@/lib/stats";
 import type { Bet, BetStatus, Game } from "@/lib/types";
+import type { openPortfolio, Valuation } from "@/lib/valuation";
 import { winPayout } from "@/lib/grade";
 
 type SyncInfo = { startedAt: string; finishedAt: string | null; ok: boolean; detail: string } | null;
@@ -16,6 +17,9 @@ type SyncInfo = { startedAt: string; finishedAt: string | null; ok: boolean; det
 type Boot = {
   bets: Bet[];
   games: Game[];
+  valuations: Record<string, Valuation>;
+  portfolio: ReturnType<typeof openPortfolio>;
+  pricedAt: string | null;
   stats: Stats;
   current: { season: number; seasonType: number; week: number } | null;
   kalshi: { configured: boolean; base: string; reason?: string };
@@ -230,14 +234,17 @@ export default function App() {
         ))}
       </nav>
 
-      <LiveNow games={boot.games} bets={boot.bets} />
+      <LiveNow games={boot.games} bets={boot.bets} valuations={boot.valuations} />
 
-      {tab === "Dashboard" && <Dashboard stats={boot.stats} />}
+      {tab === "Dashboard" && (
+        <Dashboard stats={boot.stats} portfolio={boot.portfolio} pricedAt={boot.pricedAt} />
+      )}
 
       {tab === "Bets" && (
         <Card title="Every bet" subtitle="Kalshi rows re-derive on each sync; your notes on them are kept.">
           <BetTable
             bets={boot.bets}
+            valuations={boot.valuations}
             locked={locked}
             onEdit={(b) => {
               setEditing(b);

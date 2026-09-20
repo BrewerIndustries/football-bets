@@ -37,9 +37,10 @@ git clone -b main git@github-football-bets:BrewerIndustries/football-bets.git /o
 cd /opt/football-bets
 cat ~/.config/jarvis/kalshi.env > .env && chmod 600 .env   # prod: no JARVIS_ENV
 npm install && npm run build
-sudo cp deploy/football-bets.service deploy/football-bets-live.service /etc/systemd/system/
+sudo cp deploy/football-bets.service deploy/football-bets-live.service \
+       deploy/football-bets-ws.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now football-bets football-bets-live
+sudo systemctl enable --now football-bets football-bets-live football-bets-ws
 ```
 
 Dev is the same with the `dev` branch, `/opt/football-bets-dev`, the `-dev` unit,
@@ -93,6 +94,31 @@ job, not the page's.
 ```bash
 sudo systemctl status football-bets-live
 journalctl -u football-bets-live -f
+```
+
+## Live prices — the websocket worker (prod only)
+
+```
+football-bets-ws.service  ->  node scripts/ws-worker.mjs
+```
+
+The one genuinely push-based feed in the app. Holds Kalshi's websocket
+(`wss://.../trade-api/ws/v2`, `ticker` channel) open and streams every reprice on
+markets with an open position — roughly 6 ticks a second across a full Sunday
+slate. Writes `market_prices` in SQLite; the app reads it for "current value".
+
+- **Coalesced writes.** Far more ticks arrive than are worth persisting, so only
+  the newest per ticker is kept and flushed every 2s in one transaction.
+- **Re-subscribes** when the open-position set changes (checked each minute).
+- **Reconnects** with exponential backoff to 60s; idles for 5 minutes when there
+  are no open positions at all.
+- **Read-only** — it subscribes and writes prices. It sends no orders.
+
+Two processes now write `bets.db`, so both set `busy_timeout = 5000`; WAL allows
+one writer at a time and they wait rather than erroring.
+
+```bash
+journalctl -u football-bets-ws -f
 ```
 
 ## Scheduled Kalshi sync (prod only)

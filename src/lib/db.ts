@@ -17,6 +17,9 @@ function init(): Database.Database {
   const db = new Database(DB_PATH);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
+  // The live-price worker writes this same file. WAL allows one writer at a
+  // time, so wait rather than throwing SQLITE_BUSY the moment they overlap.
+  db.pragma("busy_timeout = 5000");
   db.exec(`
     CREATE TABLE IF NOT EXISTS bets (
       id                TEXT PRIMARY KEY,
@@ -94,6 +97,16 @@ function init(): Database.Database {
       close_time   TEXT,
       result       TEXT NOT NULL DEFAULT '',
       fetched_at   TEXT NOT NULL
+    );
+
+    -- Last seen live price per market, pushed over Kalshi's websocket. This is
+    -- the only table written by a process other than the app.
+    CREATE TABLE IF NOT EXISTS market_prices (
+      ticker         TEXT PRIMARY KEY,
+      price_cents    INTEGER,
+      yes_bid_cents  INTEGER,
+      yes_ask_cents  INTEGER,
+      updated_at     TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS sync_log (
@@ -493,4 +506,25 @@ export function lastSync(kind: "games" | "kalshi") {
     ok: Boolean(r.ok),
     detail: str(r.detail),
   };
+}
+
+
+// --- live prices ------------------------------------------------------------
+
+export type MarketPrice = {
+  ticker: string;
+  priceCents: number | null;
+  yesBidCents: number | null;
+  yesAskCents: number | null;
+  updatedAt: string;
+};
+
+export function listPrices(): MarketPrice[] {
+  return (getDb().prepare(`SELECT * FROM market_prices`).all() as Row[]).map((r) => ({
+    ticker: str(r.ticker),
+    priceCents: r.price_cents as number | null,
+    yesBidCents: r.yes_bid_cents as number | null,
+    yesAskCents: r.yes_ask_cents as number | null,
+    updatedAt: str(r.updated_at),
+  }));
 }

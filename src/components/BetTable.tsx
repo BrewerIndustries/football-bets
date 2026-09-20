@@ -5,6 +5,7 @@ import { Button, Empty, StatusPill, TeamChip, inputCls, inputStyle } from "./ui"
 import { fmtAmerican, fmtMoney, fmtPrice } from "@/lib/money";
 import { describeSelection } from "@/lib/grade";
 import type { Bet, BetStatus } from "@/lib/types";
+import type { Valuation } from "@/lib/valuation";
 import { profitCents } from "@/lib/types";
 
 type Filters = {
@@ -16,12 +17,14 @@ type Filters = {
 
 export default function BetTable({
   bets,
+  valuations,
   onEdit,
   onDelete,
   onGrade,
   locked,
 }: {
   bets: Bet[];
+  valuations: Record<string, Valuation>;
   onEdit: (b: Bet) => void;
   onDelete: (b: Bet) => void;
   onGrade: (b: Bet, status: BetStatus) => void;
@@ -47,11 +50,16 @@ export default function BetTable({
   );
 
   const shown = rows.reduce(
-    (a, b) => ({
-      stake: a.stake + b.stakeCents,
-      net: a.net + profitCents(b),
-    }),
-    { stake: 0, net: 0 },
+    (a, b) => {
+      const v = valuations[b.id];
+      return {
+        stake: a.stake + b.stakeCents,
+        net: a.net + profitCents(b),
+        value: a.value + (v?.currentValueCents ?? 0),
+        valued: a.valued + (v?.currentValueCents === null || v === undefined ? 0 : 1),
+      };
+    },
+    { stake: 0, net: 0, value: 0, valued: 0 },
   );
 
   const sel = "rounded-lg border px-2 py-1 text-xs";
@@ -90,7 +98,8 @@ export default function BetTable({
           ))}
         </select>
         <span className="ml-auto text-xs tnum" style={{ color: "var(--muted)" }}>
-          {rows.length} bet{rows.length === 1 ? "" : "s"} · {fmtMoney(shown.stake)} wagered ·{" "}
+          {rows.length} bet{rows.length === 1 ? "" : "s"} · {fmtMoney(shown.stake)} bet
+          {shown.valued > 0 && <> · {fmtMoney(shown.value)} value</>} ·{" "}
           <strong style={{ color: shown.net >= 0 ? "var(--pos)" : "var(--neg)" }}>
             {fmtMoney(shown.net, { sign: true })}
           </strong>
@@ -107,8 +116,9 @@ export default function BetTable({
                 <th className="px-2 py-2 font-medium">Game</th>
                 <th className="px-2 py-2 font-medium">Pick</th>
                 <th className="px-2 py-2 font-medium">Position</th>
-                <th className="px-2 py-2 text-right font-medium">Wager</th>
-                <th className="px-2 py-2 text-right font-medium">Return</th>
+                <th className="px-2 py-2 text-right font-medium">Amount bet</th>
+                <th className="px-2 py-2 text-right font-medium">To win</th>
+                <th className="px-2 py-2 text-right font-medium">Current value</th>
                 <th className="px-2 py-2 text-right font-medium">P/L</th>
                 <th className="px-2 py-2 font-medium">Result</th>
                 <th className="px-2 py-2" />
@@ -118,6 +128,8 @@ export default function BetTable({
               {rows.map((b) => {
                 const pl = profitCents(b);
                 const isKalshi = b.source === "kalshi";
+                const v = valuations[b.id];
+                const open = b.status === "open";
                 return (
                   <tr key={b.id} style={{ borderTop: "1px solid var(--line)" }}>
                     <td className="px-2 py-2 align-top">
@@ -170,17 +182,55 @@ export default function BetTable({
                       </div>
                     </td>
 
-                    <td className="px-2 py-2 text-right align-top tnum">{fmtMoney(b.stakeCents)}</td>
+                    <td className="px-2 py-2 text-right align-top tnum">
+                      {fmtMoney(v?.amountBetCents ?? b.stakeCents)}
+                    </td>
 
                     <td className="px-2 py-2 text-right align-top tnum" style={{ color: "var(--ink-2)" }}>
-                      {b.status === "open" ? "—" : fmtMoney(b.payoutCents ?? 0)}
+                      {v ? fmtMoney(v.toWinCents, { sign: true }) : "—"}
+                    </td>
+
+                    {/* Live mark for an open position; what it paid once settled. */}
+                    <td className="px-2 py-2 text-right align-top tnum">
+                      {v?.currentValueCents === null || v === undefined ? (
+                        <span style={{ color: "var(--muted)" }}>—</span>
+                      ) : (
+                        <>
+                          {fmtMoney(v.currentValueCents)}
+                          {open && v.priceCents !== null && (
+                            <div className="text-[11px]" style={{ color: "var(--muted)" }}>
+                              @ {v.priceCents}¢
+                            </div>
+                          )}
+                        </>
+                      )}
                     </td>
 
                     <td
                       className="px-2 py-2 text-right align-top font-semibold tnum"
-                      style={{ color: b.status === "open" ? "var(--muted)" : pl >= 0 ? "var(--pos)" : "var(--neg)" }}
+                      style={{
+                        color:
+                          open && v?.unrealizedCents === null
+                            ? "var(--muted)"
+                            : (open ? (v?.unrealizedCents ?? 0) : pl) >= 0
+                              ? "var(--pos)"
+                              : "var(--neg)",
+                      }}
                     >
-                      {b.status === "open" ? "—" : fmtMoney(pl, { sign: true })}
+                      {open ? (
+                        v?.unrealizedCents === null || v === undefined ? (
+                          "—"
+                        ) : (
+                          <>
+                            {fmtMoney(v.unrealizedCents, { sign: true })}
+                            <div className="text-[11px] font-normal" style={{ color: "var(--muted)" }}>
+                              unrealized
+                            </div>
+                          </>
+                        )
+                      ) : (
+                        fmtMoney(pl, { sign: true })
+                      )}
                     </td>
 
                     <td className="px-2 py-2 align-top">
