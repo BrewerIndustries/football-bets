@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { gameCount, lastSync, listBets, listGames } from "@/lib/db";
+import { gameCount, lastSync, listBets, listGames, listPrices } from "@/lib/db";
 import { computeStats } from "@/lib/stats";
+import { openPortfolio, valueAll } from "@/lib/valuation";
 import { configStatus } from "@/lib/kalshi";
 import { tokenIsConfigured } from "@/lib/auth";
 
@@ -13,10 +14,18 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const bets = listBets();
   const games = listGames();
+  const prices = listPrices();
+  const valuations = valueAll(bets, prices);
 
   return NextResponse.json({
     bets,
     games,
+    valuations,
+    portfolio: openPortfolio(bets, valuations),
+    pricedAt: prices.reduce<string | null>(
+      (latest, p) => (!latest || p.updatedAt > latest ? p.updatedAt : latest),
+      null,
+    ),
     stats: computeStats(bets),
     current: currentWeek(games),
     kalshi: configStatus(),

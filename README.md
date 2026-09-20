@@ -47,8 +47,26 @@ reads the app back on the same 15s cadence — that request only touches local
 SQLite, so the upstream feed is hit once per interval no matter how many tabs
 are open.
 
+**Three numbers on every bet.**
+
+| Field | Meaning |
+|---|---|
+| **Amount bet** | What is at risk |
+| **To win** | The *profit* if it wins — not the gross return |
+| **Current value** | What the position is worth right now |
+
+Current value is a live mark, not an estimate: a second worker holds Kalshi's
+**websocket** open and streams every reprice on the markets you hold (~6 ticks a
+second across a full Sunday slate). A YES holding is valued at the **bid** and a
+NO holding at the complement of the **ask** — what you could actually exit at,
+rather than a mid or last-trade price that would flatter a position you can't
+sell there. Once a bet settles, its current value is simply what it paid.
+
+Markets that aren't trading show `—` rather than a guess.
+
 **Rollups.** Net P/L, return on risk, record, open exposure, net by week, the
-running equity curve, net by team backed, and breakdowns by market and source.
+running equity curve, net by team backed, and breakdowns by market and source —
+plus current value, unrealized, and realized+unrealized across open positions.
 
 ---
 
@@ -57,6 +75,7 @@ running equity curve, net by team backed, and breakdowns by market and source.
 | Source | Auth | Used for |
 |---|---|---|
 | [Kalshi trade API v2](https://docs.kalshi.com) | RSA-PSS signed, read-only | Open positions, settlements, fills, market titles |
+| Kalshi websocket (`ticker`) | same headers, read-only | Live prices → current value |
 | ESPN NFL scoreboard | none | Schedule, live and final scores |
 
 ### Kalshi request signing
@@ -132,6 +151,7 @@ curl -X POST localhost:4790/api/grade        # refresh scores, settle what's dec
 ```
 src/lib/
   kalshi.ts   signed read-only client + numeric normalizers
+  valuation.ts  amount bet / to win / current value
   espn.ts     scoreboard feed -> Game rows
   sync.ts     ticker parsing, game matching, the importer, auto-grading
   grade.ts    score -> result rules (moneyline / spread / total)
@@ -142,6 +162,9 @@ src/lib/
 src/components/
   App.tsx     tabbed shell (Dashboard / Bets / Schedule / Sync)
   Charts.tsx  weekly P/L, equity curve, net by team
+scripts/
+  live-worker.mjs  adaptive ESPN score poller (15s live / 120s idle)
+  ws-worker.mjs    Kalshi websocket -> live prices in SQLite
 ```
 
 **Money is integer cents everywhere.** Floats appear only at the edges — parsing

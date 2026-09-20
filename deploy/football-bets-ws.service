@@ -1,0 +1,16 @@
+[Unit]
+Description=Football Bets — Kalshi live price feed (prod)
+After=football-bets.service
+Wants=football-bets.service
+
+[Service]
+Type=simple
+User=dan
+WorkingDirectory=/opt/football-bets
+EnvironmentFile=/opt/football-bets/.env
+ExecStart=/usr/bin/node /opt/football-bets/scripts/ws-worker.mjs
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

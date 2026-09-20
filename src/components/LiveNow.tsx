@@ -4,13 +4,22 @@ import { Card, TeamChip } from "./ui";
 import { fmtMoney } from "@/lib/money";
 import { provisionalResult } from "@/lib/grade";
 import type { Bet, Game } from "@/lib/types";
+import type { Valuation } from "@/lib/valuation";
 
 /**
  * In-progress games and where your open money stands "if it ended right now".
  * Nothing here is settled — it's a projection off the live scoreboard, and it
  * disappears the moment no game is in progress.
  */
-export default function LiveNow({ games, bets }: { games: Game[]; bets: Bet[] }) {
+export default function LiveNow({
+  games,
+  bets,
+  valuations,
+}: {
+  games: Game[];
+  bets: Bet[];
+  valuations: Record<string, Valuation>;
+}) {
   const live = games
     .filter((g) => g.state === "in")
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -112,6 +121,13 @@ export default function LiveNow({ games, bets }: { games: Game[]; bets: Bet[] })
                     <strong style={{ color: tone }}>
                       {r === "winning" ? "ahead" : r === "losing" ? "behind" : "level"}
                     </strong>
+                    {valuations[b.id]?.currentValueCents !== null &&
+                      valuations[b.id] !== undefined && (
+                        <span style={{ color: "var(--muted)" }}>
+                          {" · now "}
+                          {fmtMoney(valuations[b.id].currentValueCents!)}
+                        </span>
+                      )}
                   </span>
                 );
               })}
