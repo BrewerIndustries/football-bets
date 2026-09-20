@@ -38,9 +38,14 @@ real position), so the column is a real, not an integer.
 **Live scoring.** While any game is in progress, a **Live now** panel shows the
 running score, the clock, and where your open money stands *if it ended right
 now* — per bet and as a projected swing. Nothing is settled until the game is
-final; the panel is a projection, not a result. The page re-fetches every 45
-seconds while something is live and stops polling entirely when nothing is.
-Server-side, cron refreshes the scoreboard every 2 minutes.
+final; the panel is a projection, not a result.
+
+ESPN's scoreboard changes about **every 10–11 seconds** during live play
+(measured, not assumed), so a long-running worker polls it every **15s** while a
+game is in progress and drops to a 2-minute heartbeat when none is. The page
+reads the app back on the same 15s cadence — that request only touches local
+SQLite, so the upstream feed is hit once per interval no matter how many tabs
+are open.
 
 **Rollups.** Net P/L, return on risk, record, open exposure, net by week, the
 running equity curve, net by team backed, and breakdowns by market and source.

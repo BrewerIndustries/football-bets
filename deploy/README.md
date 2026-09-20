@@ -37,8 +37,9 @@ git clone -b main git@github-football-bets:BrewerIndustries/football-bets.git /o
 cd /opt/football-bets
 cat ~/.config/jarvis/kalshi.env > .env && chmod 600 .env   # prod: no JARVIS_ENV
 npm install && npm run build
-sudo cp deploy/football-bets.service /etc/systemd/system/
-sudo systemctl daemon-reload && sudo systemctl enable --now football-bets
+sudo cp deploy/football-bets.service deploy/football-bets-live.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now football-bets football-bets-live
 ```
 
 Dev is the same with the `dev` branch, `/opt/football-bets-dev`, the `-dev` unit,
@@ -65,24 +66,50 @@ server {
 }
 ```
 
-## Scheduled syncs (prod only)
+## Live scores — the worker (prod only)
 
-`deploy/cron-sync.sh` drives both endpoints. Installed in `dan`'s crontab:
+Measured against the real feed during Week 2, ESPN's scoreboard changes about
+**every 10–11 seconds** while a game is in play. cron can't go below one minute,
+so scores live in a long-running worker instead:
+
+```
+football-bets-live.service  ->  node scripts/live-worker.mjs --port 4780
+```
+
+It drives `POST /api/grade` (refresh the scoreboard, settle anything final) and
+paces itself off that response's `live` count:
+
+| state | interval |
+|---|---|
+| a game in progress | **15s** |
+| nothing live | 120s heartbeat |
+| app down | backs off 5s → 30s |
+
+So a Sunday afternoon stays within ~15s of the broadcast and a quiet Tuesday
+costs 30 requests an hour. The browser polls the app on the same 15s cadence,
+but that request only reads local SQLite — the upstream feed is the worker's
+job, not the page's.
+
+```bash
+sudo systemctl status football-bets-live
+journalctl -u football-bets-live -f
+```
+
+## Scheduled Kalshi sync (prod only)
 
 ```cron
-*/2  * * * * /opt/football-bets/deploy/cron-sync.sh scores 4780
 */15 * * * * /opt/football-bets/deploy/cron-sync.sh kalshi 4780
 ```
 
-- **scores, every 2 min** — refreshes the scoreboard and settles anything now
-  final. One small ESPN request; this is what makes in-progress scores feel live.
-- **kalshi, every 15 min** — re-imports positions and settlements.
+Positions and settlements move on Kalshi's clock, not the game's, so 15 minutes
+is plenty. Output lands in `/opt/football-bets/data/cron.log` (self-trimming).
+The endpoint is idempotent, so a missed or doubled run costs nothing.
 
-Both endpoints are idempotent, so a missed or doubled run costs nothing. Output
-lands in `/opt/football-bets/data/cron.log` (self-trimming).
+(The old `*/2` scores cron was retired when the worker landed — it was the
+bottleneck that kept scores up to two minutes stale.)
 
-Dev is left un-croned on purpose: it is for development, and a second Kalshi
-poller buys nothing.
+Dev is left un-croned and un-workered on purpose: it is for development, and a
+second poller buys nothing.
 
 ## Update
 
