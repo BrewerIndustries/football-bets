@@ -192,7 +192,9 @@ export default function App() {
         </div>
       )}
 
-      <nav className="mb-4 flex gap-1" role="tablist">
+      {/* Four tabs do not fit a 320px phone in one line, so let them wrap
+          rather than push the page sideways. */}
+      <nav className="mb-4 flex flex-wrap gap-1" role="tablist">
         {TABS.map((t) => (
           <button
             key={t}
@@ -231,7 +233,7 @@ export default function App() {
       )}
 
       {tab === "Sync" && (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card
             title="Kalshi"
             subtitle={boot.kalshi.configured ? boot.kalshi.base : "Not configured"}
