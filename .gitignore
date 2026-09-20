@@ -6,9 +6,10 @@
 *.tsbuildinfo
 next-env.d.ts
 
-# Local data + secrets (audio bytes + SQLite live here; server-only)
+# Local data + secrets (SQLite and sync logs live here; server-only)
 /data/*.db
 /data/*.db-*
+/data/*.log
 /data/sounds
 .env
 .env.local
