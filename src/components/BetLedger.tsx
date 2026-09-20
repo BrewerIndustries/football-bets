@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Empty, StatusPill, inputStyle } from "./ui";
 import { fmtMoney } from "@/lib/money";
 import { describeSelection } from "@/lib/grade";
@@ -22,6 +22,44 @@ import type { Valuation } from "@/lib/valuation";
  * stacked card so the page only ever scrolls vertically. The table appears at
  * `sm` and up, where it fits without scrolling.
  */
+const FILTER_KEY = "football-bets:filters:v1";
+const RESULTS = ["all", "won", "lost", "push"] as const;
+
+type Filters = {
+  liveOnly: boolean;
+  openOnly: boolean;
+  result: string;
+  week: string;
+};
+
+const DEFAULT_FILTERS: Filters = { liveOnly: false, openOnly: false, result: "all", week: "all" };
+
+const isDefault = (f: Filters) =>
+  !f.liveOnly && !f.openOnly && f.result === "all" && f.week === "all";
+
+/**
+ * Filters survive a reload, which is the point — but a stored filter can go
+ * stale (a week that no longer has bets, "live" on a Tuesday) and silently
+ * show an empty ledger that looks broken. Everything read back is validated
+ * against the current data before it is trusted.
+ */
+function readStoredFilters(): Filters | null {
+  try {
+    const raw = window.localStorage.getItem(FILTER_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as Partial<Filters>;
+    return {
+      liveOnly: p.liveOnly === true,
+      openOnly: p.openOnly === true,
+      result: RESULTS.includes(p.result as (typeof RESULTS)[number]) ? (p.result as string) : "all",
+      week: typeof p.week === "string" ? p.week : "all",
+    };
+  } catch {
+    // Private windows and blocked site data both throw here; defaults are fine.
+    return null;
+  }
+}
+
 export default function BetLedger({
   bets,
   games,
@@ -31,10 +69,12 @@ export default function BetLedger({
   games: Game[];
   valuations: Record<string, Valuation>;
 }) {
-  const [liveOnly, setLiveOnly] = useState(false);
-  const [openOnly, setOpenOnly] = useState(false);
-  const [result, setResult] = useState("all");
-  const [week, setWeek] = useState("all");
+  // Start from the defaults so the server and the first client render agree,
+  // then adopt anything stored once mounted.
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [restored, setRestored] = useState(false);
+  const { liveOnly, openOnly, result, week } = filters;
+  const patch = (p: Partial<Filters>) => setFilters((f) => ({ ...f, ...p }));
 
   const gameById = useMemo(() => new Map(games.map((g) => [g.id, g])), [games]);
   const weeks = useMemo(
@@ -45,6 +85,34 @@ export default function BetLedger({
   const isLive = (b: Bet) => Boolean(b.gameId && gameById.get(b.gameId)?.state === "in");
   const liveCount = bets.filter(isLive).length;
   const openCount = bets.filter((b) => b.status === "open").length;
+
+  useEffect(() => {
+    const stored = readStoredFilters();
+    if (stored) setFilters(stored);
+    setRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      window.localStorage.setItem(FILTER_KEY, JSON.stringify(filters));
+    } catch {
+      // Not being able to remember a filter is not worth surfacing.
+    }
+  }, [filters, restored]);
+
+  // Drop a filter that can only return nothing: a week with no bets, or "live"
+  // once every game has finished. Without this a restored filter would show an
+  // empty ledger behind a disabled toggle you could not switch off.
+  useEffect(() => {
+    if (!restored) return;
+    setFilters((f) => {
+      const next = { ...f };
+      if (f.week !== "all" && !weeks.includes(Number(f.week))) next.week = "all";
+      if (f.liveOnly && liveCount === 0) next.liveOnly = false;
+      return next.week === f.week && next.liveOnly === f.liveOnly ? f : next;
+    });
+  }, [restored, weeks, liveCount]);
 
   const rows = useMemo(() => {
     const filtered = bets.filter(
@@ -98,26 +166,36 @@ export default function BetLedger({
           active={liveOnly}
           tone="live"
           disabled={liveCount === 0}
-          onClick={() => setLiveOnly((v) => !v)}
+          onClick={() => patch({ liveOnly: !liveOnly })}
         />
         <Toggle
           label="Open"
           count={openCount}
           active={openOnly}
-          onClick={() => setOpenOnly((v) => !v)}
+          onClick={() => patch({ openOnly: !openOnly })}
         />
-        <select className={sel} style={inputStyle} value={result} onChange={(e) => setResult(e.target.value)}>
+        <select className={sel} style={inputStyle} value={result} onChange={(e) => patch({ result: e.target.value })}>
           <option value="all">Any result</option>
           <option value="won">Won</option>
           <option value="lost">Lost</option>
           <option value="push">Push</option>
         </select>
-        <select className={sel} style={inputStyle} value={week} onChange={(e) => setWeek(e.target.value)}>
+        <select className={sel} style={inputStyle} value={week} onChange={(e) => patch({ week: e.target.value })}>
           <option value="all">Any week</option>
           {weeks.map((w) => (
             <option key={w} value={String(w)}>Week {w}</option>
           ))}
         </select>
+        {!isDefault(filters) && (
+          <button
+            type="button"
+            onClick={() => setFilters(DEFAULT_FILTERS)}
+            className="rounded-lg px-2 py-1 text-xs font-medium underline-offset-2 hover:underline"
+            style={{ color: "var(--muted)" }}
+          >
+            Clear
+          </button>
+        )}
         <span className="ml-auto text-xs" style={{ color: "var(--muted)" }}>
           {rows.length} bet{rows.length === 1 ? "" : "s"}
         </span>
