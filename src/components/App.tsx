@@ -2,15 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Dashboard from "./Dashboard";
-import BetTable from "./BetTable";
-import BetForm from "./BetForm";
+import BetLedger from "./BetLedger";
 import Schedule from "./Schedule";
 import LiveNow from "./LiveNow";
 import { Button, Card, Empty } from "./ui";
 import type { Stats } from "@/lib/stats";
-import type { Bet, BetStatus, Game } from "@/lib/types";
+import type { Bet, Game } from "@/lib/types";
 import type { openPortfolio, Valuation } from "@/lib/valuation";
-import { winPayout } from "@/lib/grade";
 
 type SyncInfo = { startedAt: string; finishedAt: string | null; ok: boolean; detail: string } | null;
 
@@ -28,22 +26,26 @@ type Boot = {
   writesLocked: boolean;
 };
 
+/** How often the page re-reads the server while a game is in progress. */
+const REFRESH_MS = 15000;
+
 const TABS = ["Dashboard", "Bets", "Schedule", "Sync"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function App() {
   const [boot, setBoot] = useState<Boot | null>(null);
-  const [tab, setTab] = useState<Tab>("Dashboard");
+  const [tab, setTab] = useState<Tab>("Bets");
   const [busy, setBusy] = useState<string | null>(null);
+  /** When the next auto-refresh is due, so the header can count down to it. */
+  const [nextRefreshAt, setNextRefreshAt] = useState<number | null>(null);
+  const [tick, setTick] = useState(() => Date.now());
   const [flash, setFlash] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Bet | null>(null);
-  const [prefillGame, setPrefillGame] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/bootstrap", { cache: "no-store" });
     if (!res.ok) throw new Error(`Load failed (${res.status})`);
     setBoot((await res.json()) as Boot);
+    setNextRefreshAt(Date.now() + REFRESH_MS);
   }, []);
 
   useEffect(() => {
@@ -60,9 +62,22 @@ export default function App() {
     if (!anyLive) return;
     const id = window.setInterval(() => {
       load().catch(() => {});
-    }, 15000);
+    }, REFRESH_MS);
     return () => window.clearInterval(id);
   }, [anyLive, load]);
+
+  // Drive the countdown. One second is the coarsest tick that still reads as
+  // moving, and it only runs while something is live.
+  useEffect(() => {
+    if (!anyLive) return;
+    const id = window.setInterval(() => setTick(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [anyLive]);
+
+  const secondsToRefresh =
+    anyLive && nextRefreshAt !== null
+      ? Math.max(0, Math.ceil((nextRefreshAt - tick) / 1000))
+      : null;
 
   const say = (tone: "ok" | "err", text: string) => {
     setFlash({ tone, text });
@@ -113,40 +128,8 @@ export default function App() {
     }
   };
 
-  async function saveBet(payload: Partial<Bet>) {
-    const url = editing ? `/api/bets/${editing.id}` : "/api/bets";
-    const res = await fetch(url, {
-      method: editing ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error ?? `Save failed (${res.status})`);
-    }
-    await load();
-    say("ok", editing ? "Bet updated." : "Bet added.");
-  }
 
-  async function gradeBet(bet: Bet, status: BetStatus) {
-    const payoutCents =
-      status === "won" ? winPayout(bet) : status === "push" ? bet.stakeCents : 0;
-    const res = await fetch(`/api/bets/${bet.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, payoutCents }),
-    });
-    if (!res.ok) return say("err", `Could not settle that bet (${res.status}).`);
-    await load();
-  }
 
-  async function removeBet(bet: Bet) {
-    if (!window.confirm("Delete this bet? This can't be undone.")) return;
-    const res = await fetch(`/api/bets/${bet.id}`, { method: "DELETE" });
-    if (!res.ok) return say("err", `Delete failed (${res.status}).`);
-    await load();
-    say("ok", "Bet deleted.");
-  }
 
   if (!boot) {
     return (
@@ -173,7 +156,13 @@ export default function App() {
               <>
                 {" · "}
                 <span style={{ color: "var(--neg)", fontWeight: 600 }}>
-                  live — refreshing every 15s
+                  live
+                </span>
+                <span style={{ color: "var(--muted)" }}>
+                  {" · refresh in "}
+                  <span className="tnum" style={{ color: "var(--ink-2)", fontWeight: 600 }}>
+                    {secondsToRefresh === null ? "—" : `${secondsToRefresh}s`}
+                  </span>
                 </span>
               </>
             )}
@@ -187,18 +176,6 @@ export default function App() {
                   title={boot.kalshi.configured ? "Import positions and settlements" : boot.kalshi.reason}>
             {busy === "kalshi" ? "Syncing…" : "Sync Kalshi"}
           </Button>
-          {!locked && (
-            <Button
-              variant="primary"
-              onClick={() => {
-                setEditing(null);
-                setPrefillGame(null);
-                setFormOpen(true);
-              }}
-            >
-              Add bet
-            </Button>
-          )}
         </div>
       </header>
 
@@ -234,41 +211,23 @@ export default function App() {
         ))}
       </nav>
 
-      <LiveNow games={boot.games} bets={boot.bets} valuations={boot.valuations} />
+      <LiveNow games={boot.games} bets={boot.bets} />
 
       {tab === "Dashboard" && (
         <Dashboard stats={boot.stats} portfolio={boot.portfolio} pricedAt={boot.pricedAt} />
       )}
 
       {tab === "Bets" && (
-        <Card title="Every bet" subtitle="Kalshi rows re-derive on each sync; your notes on them are kept.">
-          <BetTable
-            bets={boot.bets}
-            valuations={boot.valuations}
-            locked={locked}
-            onEdit={(b) => {
-              setEditing(b);
-              setPrefillGame(null);
-              setFormOpen(true);
-            }}
-            onDelete={removeBet}
-            onGrade={gradeBet}
-          />
+        <Card
+          title="Every bet"
+          subtitle="Mirrored from Kalshi — the team you backed is the bold one."
+        >
+          <BetLedger bets={boot.bets} games={boot.games} valuations={boot.valuations} />
         </Card>
       )}
 
       {tab === "Schedule" && (
-        <Schedule
-          games={boot.games}
-          bets={boot.bets}
-          current={boot.current}
-          locked={locked}
-          onAddForGame={(gameId) => {
-            setEditing(null);
-            setPrefillGame(gameId);
-            setFormOpen(true);
-          }}
-        />
+        <Schedule games={boot.games} bets={boot.bets} current={boot.current} />
       )}
 
       {tab === "Sync" && (
@@ -317,9 +276,9 @@ export default function App() {
           </Card>
 
           {locked && (
-            <Card title="Writes are locked">
+            <Card title="Syncs are locked">
               <Empty>
-                A JARVIS_TOKEN is set, so edits and syncs need that token. Unset it for an open,
+                A JARVIS_TOKEN is set, so syncs need that token. Unset it for an open,
                 tailnet-only deployment.
               </Empty>
             </Card>
@@ -327,14 +286,6 @@ export default function App() {
         </div>
       )}
 
-      <BetForm
-        open={formOpen}
-        games={boot.games}
-        editing={editing}
-        prefillGameId={prefillGame}
-        onClose={() => setFormOpen(false)}
-        onSave={saveBet}
-      />
     </main>
   );
 }

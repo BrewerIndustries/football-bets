@@ -13,6 +13,15 @@ the tailnet. Nothing is internet-facing. Dev lives at `http://100.102.159.57:479
 
 ## What it does
 
+**A read-only ledger.** Bets are mirrored from Kalshi; there is no manual-entry
+form. The ledger reads left to right — *who is playing → what the score is →
+what it cost → what it pays → what it's worth* — and the team you actually
+backed is set large and bold against its muted opponent, so a column of rows
+scans as a list of your picks rather than a list of fixtures. Futures keep the
+same columns, with the market's subject in the team slot.
+
+(The write endpoints still exist for scripting; nothing in the UI calls them.)
+
 **Two bet shapes, per bet.**
 
 | Shape | What it models | Economics |
@@ -32,8 +41,8 @@ real position), so the column is a real, not an integer.
    so it is recorded but not used.)
 2. **Final scores** — a manual bet linked to a game is graded from the box
    score: moneyline, spread (with push on the number), and totals.
-3. **By hand** — W / L / P buttons on any manual bet, for props the feed can't
-   answer.
+3. **By hand** — `PATCH /api/bets/:id` with a status, for props no feed can
+   answer. There is no button for this in the UI.
 
 **Live scoring.** While any game is in progress, a **Live now** panel shows the
 running score, the clock, and where your open money stands *if it ended right
@@ -64,9 +73,14 @@ sell there. Once a bet settles, its current value is simply what it paid.
 
 Markets that aren't trading show `—` rather than a guess.
 
-**Rollups.** Net P/L, return on risk, record, open exposure, net by week, the
-running equity curve, net by team backed, and breakdowns by market and source —
-plus current value, unrealized, and realized+unrealized across open positions.
+**Rollups.** Net P/L, return on risk, record, open exposure, the running equity
+curve, net by team backed, and a **week-by-week results table closed by a
+summary** at the foot of the dashboard — with a running net carried across the
+weeks that reconciles to the headline figure at the top. Plus current value,
+unrealized, and realized+unrealized across open positions.
+
+While a game is live the header counts down to the next auto-refresh rather
+than just claiming an interval.
 
 ---
 
@@ -160,7 +174,8 @@ src/lib/
   money.ts    integer-cents arithmetic, American odds
   teams.ts    the 32 clubs, alias folding, ticker pair splitting
 src/components/
-  App.tsx     tabbed shell (Dashboard / Bets / Schedule / Sync)
+  App.tsx      tabbed shell (Bets / Dashboard / Schedule / Sync)
+  BetLedger.tsx  the column view: pick, box score, bet, to win, current value
   Charts.tsx  weekly P/L, equity curve, net by team
 scripts/
   live-worker.mjs  adaptive ESPN score poller (15s live / 120s idle)
