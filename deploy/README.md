@@ -77,19 +77,26 @@ so scores live in a long-running worker instead:
 football-bets-live.service  ->  node scripts/live-worker.mjs --port 4780
 ```
 
-It drives `POST /api/grade` (refresh the scoreboard, settle anything final) and
-paces itself off that response's `live` count:
+It is **schedule-aware**, not merely slow when idle. The scoreboard payload is
+**224KB**, so the original 120s heartbeat cost about **160MB a day** to be told
+nothing had changed. Kickoff times are known in advance, so the worker first
+asks `GET /api/live-status` — a local DB read that makes **no upstream request**
+— and only fetches the scoreboard when that could tell it something new:
 
-| state | interval |
-|---|---|
-| a game in progress | **15s** |
-| nothing live | 120s heartbeat |
-| app down | backs off 5s → 30s |
+| state | upstream fetch | next check |
+|---|---|---|
+| a game in progress | yes | **15s** |
+| kickoff within 2 min, or overdue | yes | 15s |
+| nothing live, kickoff later | **none** | sleep toward kickoff, capped at 30 min |
+| schedule not refreshed in 6h | yes (once) | — |
+| app down | — | backs off 5s → 30s |
 
-So a Sunday afternoon stays within ~15s of the broadcast and a quiet Tuesday
-costs 30 requests an hour. The browser polls the app on the same 15s cadence,
-but that request only reads local SQLite — the upstream feed is the worker's
-job, not the page's.
+Measured: **0** scoreboard fetches across 45s idle, against 4 per 50s while
+live. Idle cost drops from ~720 fetches/day (~160MB) to ~4/day (~1MB).
+
+The browser polls the app on the same 15s cadence while a game is live and stops
+entirely otherwise — and that request only reads local SQLite, so the upstream
+feed is hit once per interval no matter how many tabs are open.
 
 ```bash
 sudo systemctl status football-bets-live
