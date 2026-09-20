@@ -5,6 +5,7 @@ import { Empty, StatusPill, inputStyle } from "./ui";
 import { fmtMoney } from "@/lib/money";
 import { describeSelection } from "@/lib/grade";
 import { team as teamOf } from "@/lib/teams";
+import { BoxScore, GameState } from "./BoxScore";
 import type { Bet, Game } from "@/lib/types";
 import type { Valuation } from "@/lib/valuation";
 
@@ -323,7 +324,7 @@ function MobileCard({ bet, game, v }: { bet: Bet; game: Game | null; v?: Valuati
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
         {game ? (
           <>
-            <BoxScore bet={bet} game={game} />
+            <BoxScore game={game} backedTeams={[bet.team]} noSide={bet.side === "no"} />
             <div className="min-w-0 flex-1 text-right">
               <GameState game={game} />
             </div>
@@ -373,11 +374,7 @@ function Figures({
       <Figure
         label="Value"
         value={value === null ? "—" : fmtMoney(value)}
-        sub={
-          unrealized === null
-            ? undefined
-            : `${fmtMoney(unrealized, { sign: true })}${open ? "" : ""}`
-        }
+        sub={unrealized === null ? undefined : fmtMoney(unrealized, { sign: true })}
         subTone={unrealized === null ? undefined : unrealized >= 0 ? "pos" : "neg"}
       />
     </div>
@@ -429,7 +426,7 @@ function DesktopRow({ bet, game, v }: { bet: Bet; game: Game | null; v?: Valuati
   return (
     <tr style={{ borderTop: "1px solid var(--line)" }}>
       <td className="px-2 py-2.5 align-top">
-        {game ? <BoxScore bet={bet} game={game} /> : <FuturesSubject bet={bet} />}
+        {game ? <BoxScore game={game} backedTeams={[bet.team]} noSide={bet.side === "no"} /> : <FuturesSubject bet={bet} />}
       </td>
       <td className="px-2 py-2.5 align-top">
         {game ? <GameState game={game} /> : <NonGameLine bet={bet} />}
@@ -467,89 +464,6 @@ function DesktopRow({ bet, game, v }: { bet: Bet; game: Game | null; v?: Valuati
 
 /* ------------------------------------------------------------------ shared */
 
-/**
- * A box score: away over home, team on the left and score hard right inside a
- * fixed-width block, so scores form a clean column down the page instead of
- * drifting with the length of each team's name.
- *
- * The backed team carries the weight (larger, bold, full ink); the opponent
- * stays small and muted. Row height is fixed so the two type sizes still sit on
- * a shared grid and the scores line up across every row.
- */
-function BoxScore({ bet, game }: { bet: Bet; game: Game }) {
-  const backed = bet.team;
-  const hasScore = game.awayScore !== null && game.homeScore !== null;
-  const away = game.awayScore ?? 0;
-  const home = game.homeScore ?? 0;
-
-  return (
-    <div className="w-[7.25rem] shrink-0 sm:w-[8.5rem]">
-      <ScoreRow
-        abbr={game.awayTeam}
-        score={hasScore ? away : null}
-        backed={backed === game.awayTeam}
-        leading={hasScore && away > home}
-      />
-      <ScoreRow
-        abbr={game.homeTeam}
-        score={hasScore ? home : null}
-        backed={backed === game.homeTeam}
-        leading={hasScore && home > away}
-      />
-      {bet.side === "no" && (
-        <span
-          className="mt-0.5 inline-block rounded px-1 py-0.5 text-[10px] font-bold"
-          style={{ background: "color-mix(in srgb, var(--ink) 10%, transparent)", color: "var(--ink-2)" }}
-          title="A NO position — this backs the other side"
-        >
-          NO
-        </span>
-      )}
-    </div>
-  );
-}
-
-function ScoreRow({
-  abbr,
-  score,
-  backed,
-  leading,
-}: {
-  abbr: string;
-  score: number | null;
-  backed: boolean;
-  leading: boolean;
-}) {
-  const t = teamOf(abbr);
-  return (
-    <div className="flex h-6 items-center justify-between gap-2">
-      <span className="inline-flex min-w-0 items-center gap-1.5">
-        <span
-          aria-hidden
-          className={`inline-block shrink-0 rounded-full ${backed ? "h-2.5 w-2.5" : "h-2 w-2"}`}
-          style={{ background: t?.color ?? "var(--muted)", outline: "1px solid var(--line-strong)" }}
-        />
-        <span
-          className={backed ? "text-base font-bold leading-none tracking-tight" : "text-sm leading-none"}
-          style={{ color: backed ? "var(--ink)" : "var(--muted)" }}
-          title={t ? `${t.location} ${t.name}` : abbr}
-        >
-          {abbr}
-        </span>
-      </span>
-      <span
-        className="tnum text-base leading-none"
-        style={{
-          color: score === null ? "var(--line-strong)" : leading ? "var(--ink)" : "var(--ink-2)",
-          fontWeight: leading ? 700 : 400,
-        }}
-      >
-        {score === null ? "–" : score}
-      </span>
-    </div>
-  );
-}
-
 function FuturesSubject({ bet }: { bet: Bet }) {
   const t = teamOf(bet.team);
   return (
@@ -569,50 +483,6 @@ function FuturesSubject({ bet }: { bet: Bet }) {
       >
         {describeSelection(bet)}
       </span>
-    </div>
-  );
-}
-
-/**
- * Game state beside the box score. A live detail like "14:14 - 2nd Quarter" is
- * split so the period sits on the first line and the clock on the second,
- * lining up with the two rows of the box score next to it.
- */
-function GameState({ game }: { game: Game }) {
-  const live = game.state === "in";
-  const final = game.completed;
-
-  if (!live && !final) {
-    return (
-      <div className="text-xs" style={{ color: "var(--muted)" }}>
-        {new Date(game.date).toLocaleString(undefined, {
-          weekday: "short",
-          hour: "numeric",
-          minute: "2-digit",
-        })}
-      </div>
-    );
-  }
-
-  const detail = game.statusDetail || (final ? "Final" : "In progress");
-  // ESPN formats in-progress detail as "<clock> - <period>".
-  const split = /^(.+?)\s+-\s+(.+)$/.exec(detail);
-  const clock = split?.[1] ?? null;
-  const period = split?.[2] ?? detail;
-
-  return (
-    <div className="whitespace-nowrap">
-      <div
-        className="flex h-6 items-center text-xs font-semibold"
-        style={{ color: live ? "var(--neg)" : "var(--ink-2)" }}
-      >
-        {period}
-      </div>
-      {clock && (
-        <div className="flex h-6 items-center tnum text-xs" style={{ color: "var(--muted)" }}>
-          {clock}
-        </div>
-      )}
     </div>
   );
 }

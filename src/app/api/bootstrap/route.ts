@@ -15,7 +15,7 @@ export async function GET() {
   const bets = listBets();
   const games = listGames();
   const prices = listPrices();
-  const valuations = valueAll(bets, prices);
+  const valuations = valueAll(bets, prices, games);
 
   return NextResponse.json({
     bets,

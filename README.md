@@ -104,7 +104,19 @@ NO holding at the complement of the **ask** — what you could actually exit at,
 rather than a mid or last-trade price that would flatter a position you can't
 sell there. Once a bet settles, its current value is simply what it paid.
 
+**A closed market has no bid.** Once a game ends the order book empties, so
+marking to it would value every position at zero — showing a *winning* bet as a
+total loss until the settlement import catches up. When the game is final and
+the position is still open, the value comes from the final score instead, and
+the UI labels it *pending settlement* rather than *unrealized*.
+
 Markets that aren't trading show `—` rather than a guess.
+
+**The schedule is a personal scoreboard.** Every game in the week, with the team
+you backed set bold in the box score and what the bet is worth to you beside it
+— stake, profit or loss, and whether that figure is final, unrealized or pending
+settlement. Games you had no money on stay deliberately quiet, and the week's
+net sits in the header.
 
 **Rollups.** Net P/L, return on risk, record, open exposure, the running equity
 curve, net by team backed, and a **week-by-week results table closed by a
