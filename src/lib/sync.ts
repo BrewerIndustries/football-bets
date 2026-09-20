@@ -93,7 +93,14 @@ export function isFootballTicker(ticker: string): boolean {
 
 // --- game schedule ----------------------------------------------------------
 
-export type GamesSyncResult = { weeksFetched: number; games: number; season: number; week: number };
+export type GamesSyncResult = {
+  weeksFetched: number;
+  games: number;
+  season: number;
+  week: number;
+  /** Games currently in progress — what the live worker paces itself by. */
+  live: number;
+};
 
 /** Refresh the current week (cheap) or backfill whole seasons. */
 export async function syncGames(opts: { seasons?: number[]; full?: boolean } = {}): Promise<GamesSyncResult> {
@@ -117,8 +124,9 @@ export async function syncGames(opts: { seasons?: number[]; full?: boolean } = {
     const rows = [...byId.values()];
     upsertGames(rows);
 
-    finishSync(logId, true, `${rows.length} games across ${weeks} fetch(es)`);
-    return { weeksFetched: weeks, games: rows.length, season: current.season, week: current.week };
+    const live = rows.filter((g) => g.state === "in").length;
+    finishSync(logId, true, `${rows.length} games across ${weeks} fetch(es)` + (live ? `, ${live} live` : ""));
+    return { weeksFetched: weeks, games: rows.length, season: current.season, week: current.week, live };
   } catch (e) {
     finishSync(logId, false, (e as Error).message);
     throw e;

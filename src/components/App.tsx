@@ -46,15 +46,17 @@ export default function App() {
     load().catch((e) => setFlash({ tone: "err", text: (e as Error).message }));
   }, [load]);
 
-  // While a game is in progress the scoreboard moves, so pull fresh state on a
-  // short interval. With nothing live there is nothing to refresh, and the
-  // polling stops entirely rather than burning requests on a quiet Tuesday.
+  // While a game is in progress the scoreboard moves every ~10s, and the live
+  // worker is refreshing the server side at that pace — so read it back on a
+  // similar interval. This request only hits local SQLite; the upstream feed is
+  // the worker's job, not the browser's. With nothing live the polling stops
+  // entirely rather than burning requests on a quiet Tuesday.
   const anyLive = boot?.games.some((g) => g.state === "in") ?? false;
   useEffect(() => {
     if (!anyLive) return;
     const id = window.setInterval(() => {
       load().catch(() => {});
-    }, 45000);
+    }, 15000);
     return () => window.clearInterval(id);
   }, [anyLive, load]);
 
@@ -167,7 +169,7 @@ export default function App() {
               <>
                 {" · "}
                 <span style={{ color: "var(--neg)", fontWeight: 600 }}>
-                  live — refreshing every 45s
+                  live — refreshing every 15s
                 </span>
               </>
             )}

@@ -13,9 +13,11 @@ export async function POST(req: NextRequest) {
   if (!isAuthorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    await syncGames();
+    const games = await syncGames();
     const result = gradeOpenBets();
-    return NextResponse.json({ ok: true, ...result });
+    // `live` lets the caller pace itself: the live worker polls fast while a
+    // game is running and backs off to a slow heartbeat when none is.
+    return NextResponse.json({ ok: true, ...result, live: games.live, week: games.week });
   } catch (e) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 502 });
   }

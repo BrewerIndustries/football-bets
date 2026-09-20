@@ -1,0 +1,16 @@
+[Unit]
+Description=Football Bets — adaptive live score poller (prod)
+After=football-bets.service
+Wants=football-bets.service
+
+[Service]
+Type=simple
+User=dan
+WorkingDirectory=/opt/football-bets
+EnvironmentFile=/opt/football-bets/.env
+ExecStart=/usr/bin/node /opt/football-bets/scripts/live-worker.mjs --port 4780
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
