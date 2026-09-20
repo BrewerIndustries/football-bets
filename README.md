@@ -22,6 +22,15 @@ same columns, with the market's subject in the team slot.
 
 (The write endpoints still exist for scripting; nothing in the UI calls them.)
 
+**Two layouts, one dataset.** A five-column table cannot fit a phone, and making
+it scroll sideways is the wrong answer — below `lg` each bet becomes a stacked
+card, so the page only ever scrolls vertically. Verified at 320 / 390 / 768 /
+1024 / 1440px: zero horizontal overflow on every tab.
+
+The charts follow the table's breakpoint. Their fixed-viewBox labels scale to
+about 4px on a phone, so narrow screens get the week-by-week table instead —
+the same numbers, legibly.
+
 **Two bet shapes, per bet.**
 
 | Shape | What it models | Economics |

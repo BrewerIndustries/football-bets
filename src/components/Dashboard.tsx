@@ -31,9 +31,9 @@ export default function Dashboard({
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 gap-4">
       {/* Exactly one hero figure on the view: the number the app exists for. */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
           label="Net profit / loss"
           value={fmtMoney(t.netCents, { sign: true })}
@@ -61,7 +61,7 @@ export default function Dashboard({
 
       {/* Mark to market: only meaningful while positions are still trading. */}
       {portfolio.priced > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           <StatTile
             label="Current value of open bets"
             value={fmtMoney(portfolio.valueCents)}
@@ -98,20 +98,24 @@ export default function Dashboard({
         </div>
       )}
 
-      <Card
-        title="Net by week"
-        subtitle="Settled bets only. Blue is a winning week, red a losing one; the best and worst are labelled."
-      >
-        <WeeklyPL buckets={stats.byWeek} />
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Running total" subtitle="Cumulative profit and loss in the order bets settled.">
-          <EquityCurve points={stats.cumulative} />
+      <div className="hidden lg:block">
+        <Card
+          title="Net by week"
+          subtitle="Settled bets only. Blue is a winning week, red a losing one; the best and worst are labelled."
+        >
+          <WeeklyPL buckets={stats.byWeek} />
         </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="hidden lg:block">
+          <Card title="Running total" subtitle="Cumulative profit and loss in the order bets settled.">
+            <EquityCurve points={stats.cumulative} />
+          </Card>
+        </div>
 
         <Card title="Best and worst weeks" subtitle="Two extremes, plus what the rest cost.">
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <StatTile
               label="Biggest single win"
               value={fmtMoney(t.biggestWinCents, { sign: true })}
@@ -126,9 +130,11 @@ export default function Dashboard({
         </Card>
       </div>
 
-      <Card title="Net by team backed" subtitle="Which teams have actually paid — best to worst.">
-        <TeamBars buckets={stats.byTeam} />
-      </Card>
+      <div className="hidden lg:block">
+        <Card title="Net by team backed" subtitle="Which teams have actually paid — best to worst.">
+          <TeamBars buckets={stats.byTeam} />
+        </Card>
+      </div>
 
       <Card title="By market" subtitle="Where the money goes, by bet type.">
         <BucketTable rows={stats.byMarket} />
@@ -160,15 +166,17 @@ function WeekByWeek({ weeks, totals }: { weeks: Stats["byWeek"]; totals: Totals 
 
   return (
     <>
-      <div className="overflow-x-auto">
+      {/* Bets / Bet / Returned drop away on a phone so the table fits without
+          scrolling sideways; week, record, net and running always survive. */}
+      <div>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs" style={{ color: "var(--muted)" }}>
               <th className="py-2 font-medium">Week</th>
-              <th className="py-2 text-right font-medium">Bets</th>
+              <th className="hidden py-2 text-right font-medium sm:table-cell">Bets</th>
               <th className="py-2 text-right font-medium">Record</th>
-              <th className="py-2 text-right font-medium">Bet</th>
-              <th className="py-2 text-right font-medium">Returned</th>
+              <th className="hidden py-2 text-right font-medium sm:table-cell">Bet</th>
+              <th className="hidden py-2 text-right font-medium md:table-cell">Returned</th>
               <th className="py-2 text-right font-medium">Net</th>
               <th className="py-2 text-right font-medium">Running</th>
             </tr>
@@ -177,15 +185,17 @@ function WeekByWeek({ weeks, totals }: { weeks: Stats["byWeek"]; totals: Totals 
             {rows.map((w) => (
               <tr key={w.key} style={{ borderTop: "1px solid var(--line)" }}>
                 <td className="py-2 font-medium">{w.label}</td>
-                <td className="py-2 text-right tnum" style={{ color: "var(--ink-2)" }}>{w.bets}</td>
+                <td className="hidden py-2 text-right tnum sm:table-cell" style={{ color: "var(--ink-2)" }}>
+                  {w.bets}
+                </td>
                 <td className="py-2 text-right tnum" style={{ color: "var(--ink-2)" }}>
                   {w.won}–{w.lost}
                   {w.push ? `–${w.push}` : ""}
                 </td>
-                <td className="py-2 text-right tnum" style={{ color: "var(--ink-2)" }}>
+                <td className="hidden py-2 text-right tnum sm:table-cell" style={{ color: "var(--ink-2)" }}>
                   {fmtMoney(w.wageredCents)}
                 </td>
-                <td className="py-2 text-right tnum" style={{ color: "var(--ink-2)" }}>
+                <td className="hidden py-2 text-right tnum md:table-cell" style={{ color: "var(--ink-2)" }}>
                   {fmtMoney(w.returnedCents)}
                 </td>
                 <td
@@ -214,7 +224,7 @@ function WeekByWeek({ weeks, totals }: { weeks: Stats["byWeek"]; totals: Totals 
         <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
           Summary
         </div>
-        <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 lg:grid-cols-4">
           <SummaryLine label="Weeks played" value={String(weeks.length)} />
           <SummaryLine
             label="Record"
@@ -280,9 +290,9 @@ function BucketTable({ rows }: { rows: Stats["byMarket"] }) {
       <thead>
         <tr className="text-left text-xs" style={{ color: "var(--muted)" }}>
           <th className="py-1.5 font-medium">Type</th>
-          <th className="py-1.5 text-right font-medium">Bets</th>
+          <th className="hidden py-1.5 text-right font-medium sm:table-cell">Bets</th>
           <th className="py-1.5 text-right font-medium">Record</th>
-          <th className="py-1.5 text-right font-medium">Wagered</th>
+          <th className="hidden py-1.5 text-right font-medium sm:table-cell">Wagered</th>
           <th className="py-1.5 text-right font-medium">Net</th>
         </tr>
       </thead>
@@ -290,11 +300,11 @@ function BucketTable({ rows }: { rows: Stats["byMarket"] }) {
         {rows.map((r) => (
           <tr key={r.key} style={{ borderTop: "1px solid var(--line)" }}>
             <td className="py-1.5">{r.label}</td>
-            <td className="py-1.5 text-right tnum">{r.bets}</td>
+            <td className="hidden py-1.5 text-right tnum sm:table-cell">{r.bets}</td>
             <td className="py-1.5 text-right tnum" style={{ color: "var(--ink-2)" }}>
               {r.won}–{r.lost}
             </td>
-            <td className="py-1.5 text-right tnum" style={{ color: "var(--ink-2)" }}>
+            <td className="hidden py-1.5 text-right tnum sm:table-cell" style={{ color: "var(--ink-2)" }}>
               {fmtMoney(r.wageredCents)}
             </td>
             <td

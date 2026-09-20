@@ -69,7 +69,7 @@ export default function Schedule({
       {rows.length === 0 ? (
         <Empty>No games in this week.</Empty>
       ) : (
-        <ul className="grid gap-2">
+        <ul className="grid grid-cols-1 gap-2">
           {rows.map((g) => {
             const gameBets = betsByGame.get(g.id) ?? [];
             const net = gameBets.reduce((a, b) => a + profitCents(b), 0);
@@ -88,7 +88,7 @@ export default function Schedule({
                 style={{ background: "var(--surface-2)", borderColor: "var(--line)" }}
               >
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <div className="flex min-w-[190px] items-center gap-2">
+                  <div className="flex min-w-0 shrink-0 items-center gap-2">
                     <TeamChip abbr={g.awayTeam} muted={final && !awayWon} />
                     <span className="tnum text-sm font-semibold"
                           style={{ color: final ? (awayWon ? "var(--ink)" : "var(--muted)") : "var(--muted)" }}>
