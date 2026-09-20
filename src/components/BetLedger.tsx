@@ -152,8 +152,8 @@ export default function BetLedger({
           <table className="hidden w-full border-collapse lg:table">
             <thead>
               <tr className="text-xs" style={{ color: "var(--muted)" }}>
-                <th className="px-2 py-2 text-left font-medium">Pick</th>
-                <th className="px-2 py-2 text-left font-medium">Score</th>
+                <th className="px-2 py-2 text-left font-medium">Game</th>
+                <th className="px-2 py-2 text-left font-medium">Status</th>
                 <th className="px-2 py-2 text-right font-medium">Bet</th>
                 <th className="px-2 py-2 text-right font-medium">To win</th>
                 <th className="px-2 py-2 text-right font-medium">Current value</th>
@@ -242,15 +242,21 @@ function MobileCard({ bet, game, v }: { bet: Bet; game: Game | null; v?: Valuati
       className="min-w-0 rounded-lg border px-3 py-2.5"
       style={{ background: "var(--surface-2)", borderColor: "var(--line)" }}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          {game ? <Matchup bet={bet} game={game} /> : <FuturesSubject bet={bet} />}
-        </div>
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+        {game ? (
+          <>
+            <BoxScore bet={bet} game={game} />
+            <div className="min-w-0 flex-1 text-right">
+              <GameState game={game} />
+            </div>
+          </>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <FuturesSubject bet={bet} />
+            <NonGameLine bet={bet} inline />
+          </div>
+        )}
         <StatusPill status={bet.status} />
-      </div>
-
-      <div className="mt-1">
-        {game ? <ScoreLine game={game} inline /> : <NonGameLine bet={bet} inline />}
       </div>
 
       <Figures
@@ -344,19 +350,19 @@ function DesktopRow({ bet, game, v }: { bet: Bet; game: Game | null; v?: Valuati
 
   return (
     <tr style={{ borderTop: "1px solid var(--line)" }}>
-      <td className="px-2 py-2.5">
-        {game ? <Matchup bet={bet} game={game} /> : <FuturesSubject bet={bet} />}
+      <td className="px-2 py-2.5 align-top">
+        {game ? <BoxScore bet={bet} game={game} /> : <FuturesSubject bet={bet} />}
       </td>
-      <td className="px-2 py-2.5">
-        {game ? <ScoreLine game={game} /> : <NonGameLine bet={bet} />}
+      <td className="px-2 py-2.5 align-top">
+        {game ? <GameState game={game} /> : <NonGameLine bet={bet} />}
       </td>
-      <td className="px-2 py-2.5 text-right text-sm tnum">
+      <td className="px-2 py-2.5 text-right align-top text-sm tnum">
         {fmtMoney(v?.amountBetCents ?? bet.stakeCents)}
       </td>
-      <td className="px-2 py-2.5 text-right text-sm tnum" style={{ color: "var(--ink-2)" }}>
+      <td className="px-2 py-2.5 text-right align-top text-sm tnum" style={{ color: "var(--ink-2)" }}>
         {v ? fmtMoney(v.toWinCents, { sign: true }) : "—"}
       </td>
-      <td className="px-2 py-2.5 text-right">
+      <td className="px-2 py-2.5 text-right align-top">
         {v?.currentValueCents === null || v === undefined ? (
           <span className="text-sm" style={{ color: "var(--muted)" }}>—</span>
         ) : (
@@ -374,7 +380,7 @@ function DesktopRow({ bet, game, v }: { bet: Bet; game: Game | null; v?: Valuati
           </>
         )}
       </td>
-      <td className="px-2 py-2.5">
+      <td className="px-2 py-2.5 align-top">
         <StatusPill status={bet.status} />
       </td>
     </tr>
@@ -383,16 +389,38 @@ function DesktopRow({ bet, game, v }: { bet: Bet; game: Game | null; v?: Valuati
 
 /* ------------------------------------------------------------------ shared */
 
-function Matchup({ bet, game }: { bet: Bet; game: Game }) {
+/**
+ * A box score: away over home, team on the left and score hard right inside a
+ * fixed-width block, so scores form a clean column down the page instead of
+ * drifting with the length of each team's name.
+ *
+ * The backed team carries the weight (larger, bold, full ink); the opponent
+ * stays small and muted. Row height is fixed so the two type sizes still sit on
+ * a shared grid and the scores line up across every row.
+ */
+function BoxScore({ bet, game }: { bet: Bet; game: Game }) {
   const backed = bet.team;
+  const hasScore = game.awayScore !== null && game.homeScore !== null;
+  const away = game.awayScore ?? 0;
+  const home = game.homeScore ?? 0;
+
   return (
-    <div className="flex items-center gap-1.5 whitespace-nowrap">
-      <TeamName abbr={game.awayTeam} backed={backed === game.awayTeam} />
-      <span className="text-xs" style={{ color: "var(--muted)" }}>@</span>
-      <TeamName abbr={game.homeTeam} backed={backed === game.homeTeam} />
+    <div className="w-[7.25rem] shrink-0 sm:w-[8.5rem]">
+      <ScoreRow
+        abbr={game.awayTeam}
+        score={hasScore ? away : null}
+        backed={backed === game.awayTeam}
+        leading={hasScore && away > home}
+      />
+      <ScoreRow
+        abbr={game.homeTeam}
+        score={hasScore ? home : null}
+        backed={backed === game.homeTeam}
+        leading={hasScore && home > away}
+      />
       {bet.side === "no" && (
         <span
-          className="ml-0.5 rounded px-1 py-0.5 text-[10px] font-bold"
+          className="mt-0.5 inline-block rounded px-1 py-0.5 text-[10px] font-bold"
           style={{ background: "color-mix(in srgb, var(--ink) 10%, transparent)", color: "var(--ink-2)" }}
           title="A NO position — this backs the other side"
         >
@@ -403,23 +431,44 @@ function Matchup({ bet, game }: { bet: Bet; game: Game }) {
   );
 }
 
-function TeamName({ abbr, backed }: { abbr: string; backed: boolean }) {
+function ScoreRow({
+  abbr,
+  score,
+  backed,
+  leading,
+}: {
+  abbr: string;
+  score: number | null;
+  backed: boolean;
+  leading: boolean;
+}) {
   const t = teamOf(abbr);
   return (
-    <span className="inline-flex items-center gap-1">
-      <span
-        aria-hidden
-        className={`inline-block shrink-0 rounded-full ${backed ? "h-3 w-3" : "h-2 w-2"}`}
-        style={{ background: t?.color ?? "var(--muted)", outline: "1px solid var(--line-strong)" }}
-      />
-      <span
-        className={backed ? "text-lg font-bold tracking-tight" : "text-sm"}
-        style={{ color: backed ? "var(--ink)" : "var(--muted)" }}
-        title={t ? `${t.location} ${t.name}` : abbr}
-      >
-        {abbr}
+    <div className="flex h-6 items-center justify-between gap-2">
+      <span className="inline-flex min-w-0 items-center gap-1.5">
+        <span
+          aria-hidden
+          className={`inline-block shrink-0 rounded-full ${backed ? "h-2.5 w-2.5" : "h-2 w-2"}`}
+          style={{ background: t?.color ?? "var(--muted)", outline: "1px solid var(--line-strong)" }}
+        />
+        <span
+          className={backed ? "text-base font-bold leading-none tracking-tight" : "text-sm leading-none"}
+          style={{ color: backed ? "var(--ink)" : "var(--muted)" }}
+          title={t ? `${t.location} ${t.name}` : abbr}
+        >
+          {abbr}
+        </span>
       </span>
-    </span>
+      <span
+        className="tnum text-base leading-none"
+        style={{
+          color: score === null ? "var(--line-strong)" : leading ? "var(--ink)" : "var(--ink-2)",
+          fontWeight: leading ? 700 : 400,
+        }}
+      >
+        {score === null ? "–" : score}
+      </span>
+    </div>
   );
 }
 
@@ -447,46 +496,45 @@ function FuturesSubject({ bet }: { bet: Bet }) {
 }
 
 /**
- * Score and state. Stacked in the table's own column; on a card the same
- * information reads better on one line, so `inline` lays it out horizontally.
+ * Game state beside the box score. A live detail like "14:14 - 2nd Quarter" is
+ * split so the period sits on the first line and the clock on the second,
+ * lining up with the two rows of the box score next to it.
  */
-function ScoreLine({ game, inline }: { game: Game; inline?: boolean }) {
+function GameState({ game }: { game: Game }) {
   const live = game.state === "in";
   const final = game.completed;
-  const hasScore = game.awayScore !== null && game.homeScore !== null;
 
-  const score = hasScore ? (
-    <span className="text-sm font-semibold tnum" style={{ color: "var(--ink)" }}>
-      {game.awayScore} <span style={{ color: "var(--muted)" }}>–</span> {game.homeScore}
-    </span>
-  ) : (
-    <span className="text-sm" style={{ color: "var(--muted)" }}>—</span>
-  );
+  if (!live && !final) {
+    return (
+      <div className="text-xs" style={{ color: "var(--muted)" }}>
+        {new Date(game.date).toLocaleString(undefined, {
+          weekday: "short",
+          hour: "numeric",
+          minute: "2-digit",
+        })}
+      </div>
+    );
+  }
 
-  const state = (
-    <span
-      className="text-[11px]"
-      style={{ color: live ? "var(--neg)" : "var(--muted)", fontWeight: live ? 600 : 400 }}
-    >
-      {live || final
-        ? game.statusDetail || (final ? "Final" : "In progress")
-        : new Date(game.date).toLocaleString(undefined, {
-            weekday: "short",
-            hour: "numeric",
-            minute: "2-digit",
-          })}
-    </span>
-  );
+  const detail = game.statusDetail || (final ? "Final" : "In progress");
+  // ESPN formats in-progress detail as "<clock> - <period>".
+  const split = /^(.+?)\s+-\s+(.+)$/.exec(detail);
+  const clock = split?.[1] ?? null;
+  const period = split?.[2] ?? detail;
 
-  return inline ? (
-    <div className="flex items-baseline gap-2">
-      {score}
-      {state}
-    </div>
-  ) : (
+  return (
     <div className="whitespace-nowrap">
-      <div>{score}</div>
-      <div>{state}</div>
+      <div
+        className="flex h-6 items-center text-xs font-semibold"
+        style={{ color: live ? "var(--neg)" : "var(--ink-2)" }}
+      >
+        {period}
+      </div>
+      {clock && (
+        <div className="flex h-6 items-center tnum text-xs" style={{ color: "var(--muted)" }}>
+          {clock}
+        </div>
+      )}
     </div>
   );
 }
@@ -494,13 +542,10 @@ function ScoreLine({ game, inline }: { game: Game; inline?: boolean }) {
 function NonGameLine({ bet, inline }: { bet: Bet; inline?: boolean }) {
   const text = bet.settledAt
     ? `Settled ${new Date(bet.settledAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
-    : "Futures · open";
+    : "Season long · open";
   return inline ? (
-    <span className="text-[11px]" style={{ color: "var(--muted)" }}>{text}</span>
+    <div className="mt-0.5 text-[11px]" style={{ color: "var(--muted)" }}>{text}</div>
   ) : (
-    <div className="whitespace-nowrap">
-      <div className="text-sm" style={{ color: "var(--muted)" }}>—</div>
-      <div className="text-[11px]" style={{ color: "var(--muted)" }}>{text}</div>
-    </div>
+    <div className="whitespace-nowrap text-xs" style={{ color: "var(--muted)" }}>{text}</div>
   );
 }
