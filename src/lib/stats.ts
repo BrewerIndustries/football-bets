@@ -28,7 +28,9 @@ export type Bucket = {
   bets: number;
   won: number;
   lost: number;
+  push: number;
   wageredCents: number;
+  returnedCents: number;
   netCents: number;
 };
 
@@ -118,11 +120,14 @@ function bucket(bets: Bet[], keyOf: (b: Bet) => [string, string] | null): Bucket
     if (!k) continue;
     const [key, label] = k;
     const cur =
-      map.get(key) ?? { key, label, bets: 0, won: 0, lost: 0, wageredCents: 0, netCents: 0 };
+      map.get(key) ??
+      { key, label, bets: 0, won: 0, lost: 0, push: 0, wageredCents: 0, returnedCents: 0, netCents: 0 };
     cur.bets++;
     if (b.status === "won") cur.won++;
     if (b.status === "lost") cur.lost++;
+    if (b.status === "push") cur.push++;
     cur.wageredCents += b.stakeCents;
+    cur.returnedCents += b.payoutCents ?? 0;
     cur.netCents += profitCents(b);
     map.set(key, cur);
   }

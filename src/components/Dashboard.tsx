@@ -3,7 +3,7 @@
 import { Card, Empty, StatTile } from "./ui";
 import { EquityCurve, TeamBars, WeeklyPL } from "./Charts";
 import { fmtMoney, fmtPct } from "@/lib/money";
-import type { Stats } from "@/lib/stats";
+import type { Stats, Totals } from "@/lib/stats";
 import type { openPortfolio } from "@/lib/valuation";
 
 type Portfolio = ReturnType<typeof openPortfolio>;
@@ -130,14 +130,141 @@ export default function Dashboard({
         <TeamBars buckets={stats.byTeam} />
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="By market" subtitle="Where the money goes, by bet type.">
-          <BucketTable rows={stats.byMarket} />
-        </Card>
-        <Card title="By source" subtitle="Imported from Kalshi versus entered by hand.">
-          <BucketTable rows={stats.bySource} />
-        </Card>
+      <Card title="By market" subtitle="Where the money goes, by bet type.">
+        <BucketTable rows={stats.byMarket} />
+      </Card>
+
+      <Card
+        title="Results week by week"
+        subtitle="Every settled bet, grouped by the week it was played."
+      >
+        <WeekByWeek weeks={stats.byWeek} totals={t} />
+      </Card>
+    </div>
+  );
+}
+
+/**
+ * The week-by-week ledger, closed by a summary line. Running net is carried
+ * across rows so the last one reconciles to the headline number at the top of
+ * the page — if those two ever disagree, something is wrong.
+ */
+function WeekByWeek({ weeks, totals }: { weeks: Stats["byWeek"]; totals: Totals }) {
+  if (weeks.length === 0) return <Empty>No settled bets yet.</Empty>;
+
+  let running = 0;
+  const rows = weeks.map((w) => {
+    running += w.netCents;
+    return { ...w, running };
+  });
+
+  return (
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs" style={{ color: "var(--muted)" }}>
+              <th className="py-2 font-medium">Week</th>
+              <th className="py-2 text-right font-medium">Bets</th>
+              <th className="py-2 text-right font-medium">Record</th>
+              <th className="py-2 text-right font-medium">Bet</th>
+              <th className="py-2 text-right font-medium">Returned</th>
+              <th className="py-2 text-right font-medium">Net</th>
+              <th className="py-2 text-right font-medium">Running</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((w) => (
+              <tr key={w.key} style={{ borderTop: "1px solid var(--line)" }}>
+                <td className="py-2 font-medium">{w.label}</td>
+                <td className="py-2 text-right tnum" style={{ color: "var(--ink-2)" }}>{w.bets}</td>
+                <td className="py-2 text-right tnum" style={{ color: "var(--ink-2)" }}>
+                  {w.won}–{w.lost}
+                  {w.push ? `–${w.push}` : ""}
+                </td>
+                <td className="py-2 text-right tnum" style={{ color: "var(--ink-2)" }}>
+                  {fmtMoney(w.wageredCents)}
+                </td>
+                <td className="py-2 text-right tnum" style={{ color: "var(--ink-2)" }}>
+                  {fmtMoney(w.returnedCents)}
+                </td>
+                <td
+                  className="py-2 text-right font-semibold tnum"
+                  style={{ color: w.netCents >= 0 ? "var(--pos)" : "var(--neg)" }}
+                >
+                  {fmtMoney(w.netCents, { sign: true })}
+                </td>
+                <td
+                  className="py-2 text-right tnum"
+                  style={{ color: w.running >= 0 ? "var(--pos)" : "var(--neg)" }}
+                >
+                  {fmtMoney(w.running, { sign: true })}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+
+      {/* Summary */}
+      <div
+        className="mt-4 rounded-lg border px-4 py-3"
+        style={{ background: "var(--surface-2)", borderColor: "var(--line)" }}
+      >
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+          Summary
+        </div>
+        <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryLine label="Weeks played" value={String(weeks.length)} />
+          <SummaryLine
+            label="Record"
+            value={`${totals.won}–${totals.lost}${totals.push ? `–${totals.push}` : ""}`}
+            sub={totals.won + totals.lost > 0 ? `${fmtPct(totals.winRate, 0)} of decided` : undefined}
+          />
+          <SummaryLine label="Total bet" value={fmtMoney(totals.wageredCents)} />
+          <SummaryLine label="Total returned" value={fmtMoney(totals.returnedCents)} />
+          <SummaryLine
+            label="Winning weeks"
+            value={`${weeks.filter((w) => w.netCents > 0).length} of ${weeks.length}`}
+          />
+          <SummaryLine label="Fees paid" value={fmtMoney(totals.feesCents)} />
+          <SummaryLine
+            label="Return on risk"
+            value={totals.wageredCents > 0 ? fmtPct(totals.roi) : "—"}
+            tone={totals.roi > 0 ? "pos" : totals.roi < 0 ? "neg" : undefined}
+          />
+          <SummaryLine
+            label="Net profit / loss"
+            value={fmtMoney(totals.netCents, { sign: true })}
+            tone={totals.netCents > 0 ? "pos" : totals.netCents < 0 ? "neg" : undefined}
+          />
+        </div>
+      </div>
+    </>
+  );
+}
+
+function SummaryLine({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "pos" | "neg";
+}) {
+  return (
+    <div>
+      <div className="text-xs" style={{ color: "var(--muted)" }}>{label}</div>
+      <div
+        className="text-base font-semibold tnum"
+        style={{ color: tone === "pos" ? "var(--pos)" : tone === "neg" ? "var(--neg)" : "var(--ink)" }}
+      >
+        {value}
+      </div>
+      {sub && <div className="text-[11px]" style={{ color: "var(--muted)" }}>{sub}</div>}
     </div>
   );
 }
@@ -146,7 +273,7 @@ export default function Dashboard({
  * The table view that the color relief rule requires: every value the charts
  * encode is also readable as text.
  */
-function BucketTable({ rows }: { rows: { key: string; label: string; bets: number; won: number; lost: number; wageredCents: number; netCents: number }[] }) {
+function BucketTable({ rows }: { rows: Stats["byMarket"] }) {
   if (rows.length === 0) return <Empty>No settled bets yet.</Empty>;
   return (
     <table className="w-full text-sm">

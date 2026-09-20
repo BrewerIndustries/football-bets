@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button, Card, Empty, TeamChip, inputStyle } from "./ui";
+import { Card, Empty, TeamChip, inputStyle } from "./ui";
 import { fmtMoney } from "@/lib/money";
 import type { Bet, Game } from "@/lib/types";
 import { profitCents } from "@/lib/types";
@@ -14,14 +14,10 @@ export default function Schedule({
   games,
   bets,
   current,
-  onAddForGame,
-  locked,
 }: {
   games: Game[];
   bets: Bet[];
   current: { season: number; seasonType: number; week: number } | null;
-  onAddForGame: (gameId: string) => void;
-  locked: boolean;
 }) {
   const weeks = useMemo(
     () =>
@@ -131,11 +127,6 @@ export default function Schedule({
                     </span>
                   )}
 
-                  {!locked && (
-                    <span className="ml-auto">
-                      <Button onClick={() => onAddForGame(g.id)}>Add bet</Button>
-                    </span>
-                  )}
                 </div>
               </li>
             );
