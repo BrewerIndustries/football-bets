@@ -126,6 +126,48 @@ const asCents = (v) => {
   return Number.isFinite(n) ? Math.round(n) : null;
 };
 
+// --- initial seed -----------------------------------------------------------
+
+const REST_BASE = (process.env.KALSHI_API_BASE || "https://api.elections.kalshi.com").replace(/\/+$/, "");
+
+/**
+ * The socket only speaks when a market moves, so a quiet market — a futures
+ * ticker with no trades today — would sit blank indefinitely. Seed every
+ * subscribed ticker's current quote from the public REST endpoint once, and
+ * let the stream take over from there.
+ */
+async function seedPrices(tickers) {
+  const rows = [];
+  for (const ticker of tickers) {
+    try {
+      const res = await fetch(
+        `${REST_BASE}/trade-api/v2/markets/${encodeURIComponent(ticker)}`,
+        { headers: { Accept: "application/json" } },
+      );
+      if (!res.ok) continue;
+      const m = (await res.json())?.market;
+      if (!m) continue;
+      rows.push({
+        ticker,
+        price: m.last_price_dollars !== undefined ? toCents(m.last_price_dollars) : asCents(m.last_price),
+        bid: m.yes_bid_dollars !== undefined ? toCents(m.yes_bid_dollars) : asCents(m.yes_bid),
+        ask: m.yes_ask_dollars !== undefined ? toCents(m.yes_ask_dollars) : asCents(m.yes_ask),
+        at: new Date().toISOString(),
+      });
+    } catch {
+      // A seed failure is not fatal — the stream is the real source.
+    }
+  }
+  if (rows.length) {
+    try {
+      writeBatch(rows);
+      log(`seeded ${rows.length} price(s) from REST`);
+    } catch (e) {
+      log("seed write failed:", e.message);
+    }
+  }
+}
+
 // --- the socket -------------------------------------------------------------
 
 const pending = new Map();
@@ -169,6 +211,8 @@ function connect(creds) {
     attempt = 0;
     log("websocket open");
     subscribe(tickers);
+    // Fill in anything the stream won't mention until it moves.
+    seedPrices(tickers);
   });
 
   ws.on("message", (raw) => {
