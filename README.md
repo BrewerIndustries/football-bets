@@ -84,7 +84,9 @@ final; the panel is a projection, not a result.
 
 ESPN's scoreboard changes about **every 10–11 seconds** during live play
 (measured, not assumed), so a long-running worker polls it every **15s** while a
-game is in progress and drops to a 2-minute heartbeat when none is. The page
+game is in progress. When nothing is live it fetches *nothing at all*: kickoff
+times are already known, so it checks the local schedule and sleeps toward the
+next one. That took idle cost from ~160MB a day to about 1MB. The page
 reads the app back on the same 15s cadence — that request only touches local
 SQLite, so the upstream feed is hit once per interval no matter how many tabs
 are open.
