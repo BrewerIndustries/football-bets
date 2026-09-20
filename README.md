@@ -5,8 +5,9 @@ back, and whether it hit.** Kalshi positions import themselves over the
 read-only trade API; anything placed at a book gets typed in once and then
 grades itself from the live NFL scoreboard.
 
-Tailnet-only — reachable at `http://100.102.159.57:4790` (dev) over Tailscale,
-with no public subdomain and nothing exposed to the internet.
+Private: **https://sportsbook.dabrewer.dev** is a DNS-only record pointing at the
+box's Tailscale address, so the name resolves for anyone but only *connects* from
+the tailnet. Nothing is internet-facing. Dev lives at `http://100.102.159.57:4790`.
 
 ---
 
@@ -33,6 +34,13 @@ real position), so the column is a real, not an integer.
    score: moneyline, spread (with push on the number), and totals.
 3. **By hand** — W / L / P buttons on any manual bet, for props the feed can't
    answer.
+
+**Live scoring.** While any game is in progress, a **Live now** panel shows the
+running score, the clock, and where your open money stands *if it ended right
+now* — per bet and as a projected swing. Nothing is settled until the game is
+final; the panel is a projection, not a result. The page re-fetches every 45
+seconds while something is live and stops polling entirely when nothing is.
+Server-side, cron refreshes the scoreboard every 2 minutes.
 
 **Rollups.** Net P/L, return on risk, record, open exposure, net by week, the
 running equity curve, net by team backed, and breakdowns by market and source.
@@ -144,10 +152,13 @@ contrast in light and dark; every chart has a hover layer and a table view.
 ## Deploy
 
 See [`deploy/README.md`](deploy/README.md). Short version: systemd on the box,
-no nginx, no DNS — dev on `:4790`, prod on `:4780`, both over Tailscale only.
+prod behind nginx on `sportsbook.dabrewer.dev` (wildcard cert, A record → the
+Tailscale IP), dev on its raw port. Cron syncs scores every 2 min and Kalshi
+every 15.
 
 ```bash
-/opt/football-bets-dev/deploy/update-dev.sh
+/opt/football-bets/deploy/update.sh           # prod
+/opt/football-bets-dev/deploy/update-dev.sh   # dev
 ```
 
 ---

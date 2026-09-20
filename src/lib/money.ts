@@ -13,15 +13,18 @@ export function centsToDollars(cents: number): number {
   return Math.round(cents) / 100;
 }
 
-/** "$1,234.56" / "-$12.00" — the sign leads, so a loss never reads as a total. */
+/**
+ * "$1,234.56" / "-$12.00" — the sign leads, so a loss never reads as a total.
+ * With `sign`, a gain is explicitly marked "+$12.00"; zero stays unsigned,
+ * since "+$0.00" reads as a small win rather than nothing.
+ */
 export function fmtMoney(cents: number, opts: { sign?: boolean } = {}): string {
-  const neg = cents < 0;
   const body = (Math.abs(cents) / 100).toLocaleString("en-US", {
     style: "currency",
     currency: "USD",
   });
-  if (neg) return `-${body}`;
-  return opts.sign ? `+${body}` : body;
+  if (cents < 0) return `-${body}`;
+  return opts.sign && cents > 0 ? `+${body}` : body;
 }
 
 /** Contract prices display as cents: 62¢. */

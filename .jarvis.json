@@ -2,11 +2,30 @@
   "id": "footballbets",
   "name": "Football Bets",
   "category": "standalone",
-  "description": "Football bet ledger — teams picked, wager, winnings and results. Kalshi positions and settlements import themselves over the read-only trade API; manual book bets (spread / total / moneyline) grade automatically from the live NFL scoreboard. Tailnet-only, no public subdomain.",
-  "tech": ["Next.js 16", "React 19", "TypeScript", "Tailwind CSS v4", "SQLite (better-sqlite3)", "Kalshi API", "ESPN NFL feed"],
-  "status": { "prod": "in_progress", "dev": "live" },
+  "description": "Football bet ledger — teams picked, wager, winnings and results. Kalshi positions and settlements import themselves over the read-only trade API; manual book bets (spread / total / moneyline) grade automatically from the live NFL scoreboard, with in-progress games projected live. Private: sportsbook.dabrewer.dev resolves to the Tailscale address, so it is reachable only on the tailnet.",
+  "tech": [
+    "Next.js 16",
+    "React 19",
+    "TypeScript",
+    "Tailwind CSS v4",
+    "SQLite (better-sqlite3)",
+    "Kalshi API",
+    "ESPN NFL feed"
+  ],
+  "status": {
+    "prod": "live",
+    "dev": "live"
+  },
   "deploy": {
-    "prod": { "port": 4780, "https": false },
-    "dev": { "port": 4790, "https": false }
+    "prod": {
+      "port": 4780,
+      "https": true,
+      "url": "https://sportsbook.dabrewer.dev"
+    },
+    "dev": {
+      "port": 4790,
+      "https": false,
+      "url": "http://100.102.159.57:4790"
+    }
   }
 }

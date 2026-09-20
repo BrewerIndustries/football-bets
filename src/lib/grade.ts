@@ -18,6 +18,27 @@ export function gradeFromGame(bet: Bet, game: Game): Grade | null {
   if (bet.source === "kalshi") return null;
   if (bet.status !== "open") return null;
   if (!game.completed) return null;
+  return decide(bet, game);
+}
+
+/**
+ * The same rules applied to a game still in progress — "if it ended right now".
+ * Used for the live view only; it never writes a result. Works for Kalshi bets
+ * too, since nothing is being settled.
+ */
+export function provisionalResult(
+  bet: Bet,
+  game: Game,
+): "winning" | "losing" | "tied" | null {
+  if (bet.status !== "open") return null;
+  if (game.state !== "in") return null;
+  const g = decide(bet, game);
+  if (!g) return null;
+  return g.status === "won" ? "winning" : g.status === "push" ? "tied" : "losing";
+}
+
+/** Shared decision logic; the callers decide whether it counts as final. */
+function decide(bet: Bet, game: Game): Grade | null {
   if (game.homeScore === null || game.awayScore === null) return null;
 
   const { homeScore, awayScore } = game;

@@ -5,6 +5,7 @@ import Dashboard from "./Dashboard";
 import BetTable from "./BetTable";
 import BetForm from "./BetForm";
 import Schedule from "./Schedule";
+import LiveNow from "./LiveNow";
 import { Button, Card, Empty } from "./ui";
 import type { Stats } from "@/lib/stats";
 import type { Bet, BetStatus, Game } from "@/lib/types";
@@ -44,6 +45,18 @@ export default function App() {
   useEffect(() => {
     load().catch((e) => setFlash({ tone: "err", text: (e as Error).message }));
   }, [load]);
+
+  // While a game is in progress the scoreboard moves, so pull fresh state on a
+  // short interval. With nothing live there is nothing to refresh, and the
+  // polling stops entirely rather than burning requests on a quiet Tuesday.
+  const anyLive = boot?.games.some((g) => g.state === "in") ?? false;
+  useEffect(() => {
+    if (!anyLive) return;
+    const id = window.setInterval(() => {
+      load().catch(() => {});
+    }, 45000);
+    return () => window.clearInterval(id);
+  }, [anyLive, load]);
 
   const say = (tone: "ok" | "err", text: string) => {
     setFlash({ tone, text });
@@ -150,6 +163,14 @@ export default function App() {
               : "No schedule cached yet"}
             {" · "}
             {boot.bets.length} bet{boot.bets.length === 1 ? "" : "s"} tracked
+            {anyLive && (
+              <>
+                {" · "}
+                <span style={{ color: "var(--neg)", fontWeight: 600 }}>
+                  live — refreshing every 45s
+                </span>
+              </>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -206,6 +227,8 @@ export default function App() {
           </button>
         ))}
       </nav>
+
+      <LiveNow games={boot.games} bets={boot.bets} />
 
       {tab === "Dashboard" && <Dashboard stats={boot.stats} />}
 
