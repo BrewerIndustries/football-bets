@@ -36,6 +36,12 @@ two score rows.
 visible before you press rather than after; Live disables itself when nothing is
 in progress. A result and week select sit beside them.
 
+Filters persist across reloads in `localStorage`, and everything read back is
+validated against the current data first: a stored week that no longer has bets,
+or "live" on a day with no games, is dropped rather than restored. Without that
+a stale filter would show an empty ledger behind a disabled toggle you could not
+switch off. A **Clear** button appears whenever any filter is off its default.
+
 Bets sort **newest first**: later seasons and weeks above earlier ones, and
 within a week the later kickoff first. Season-long bets have no week to sort by
 and outlive every game, so they sink to the bottom as their own group.
