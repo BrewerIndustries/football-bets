@@ -22,6 +22,15 @@ same columns, with the market's subject in the team slot.
 
 (The write endpoints still exist for scripting; nothing in the UI calls them.)
 
+**Filtering and order.** Two toggles — **Live** (bets on a game in progress) and
+**Open** (not yet settled) — each carrying its own count, so an empty result is
+visible before you press rather than after; Live disables itself when nothing is
+in progress. A result and week select sit beside them.
+
+Bets sort **newest first**: later seasons and weeks above earlier ones, and
+within a week the later kickoff first. Season-long bets have no week to sort by
+and outlive every game, so they sink to the bottom as their own group.
+
 **Two layouts, one dataset.** A five-column table cannot fit a phone, and making
 it scroll sideways is the wrong answer — below `lg` each bet becomes a stacked
 card, so the page only ever scrolls vertically. Verified at 320 / 390 / 768 /

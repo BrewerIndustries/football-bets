@@ -31,20 +31,49 @@ export default function BetLedger({
   games: Game[];
   valuations: Record<string, Valuation>;
 }) {
-  const [status, setStatus] = useState("all");
+  const [liveOnly, setLiveOnly] = useState(false);
+  const [openOnly, setOpenOnly] = useState(false);
+  const [result, setResult] = useState("all");
   const [week, setWeek] = useState("all");
 
   const gameById = useMemo(() => new Map(games.map((g) => [g.id, g])), [games]);
   const weeks = useMemo(
-    () => [...new Set(bets.map((b) => b.week).filter((w): w is number => w !== null))].sort((a, b) => a - b),
+    () => [...new Set(bets.map((b) => b.week).filter((w): w is number => w !== null))].sort((a, b) => b - a),
     [bets],
   );
 
-  const rows = bets.filter(
-    (b) =>
-      (status === "all" || b.status === status) &&
-      (week === "all" || String(b.week) === week),
-  );
+  const isLive = (b: Bet) => Boolean(b.gameId && gameById.get(b.gameId)?.state === "in");
+  const liveCount = bets.filter(isLive).length;
+  const openCount = bets.filter((b) => b.status === "open").length;
+
+  const rows = useMemo(() => {
+    const filtered = bets.filter(
+      (b) =>
+        (!liveOnly || isLive(b)) &&
+        (!openOnly || b.status === "open") &&
+        (result === "all" || b.status === result) &&
+        (week === "all" || String(b.week) === week),
+    );
+
+    /**
+     * Newest first: later seasons and weeks above earlier ones, and within a
+     * week the later kickoff first. Season-long bets have no week to sort by
+     * and outlive every game, so they sink to the bottom as their own group.
+     */
+    return [...filtered].sort((a, b) => {
+      const seasonLong = (x: Bet) => (x.gameId ? 0 : 1);
+      if (seasonLong(a) !== seasonLong(b)) return seasonLong(a) - seasonLong(b);
+
+      if (seasonLong(a) === 1) {
+        return (b.placedAt ?? "").localeCompare(a.placedAt ?? "");
+      }
+
+      if ((a.season ?? 0) !== (b.season ?? 0)) return (b.season ?? 0) - (a.season ?? 0);
+      if ((a.week ?? 0) !== (b.week ?? 0)) return (b.week ?? 0) - (a.week ?? 0);
+      return (b.eventDate ?? b.placedAt ?? "").localeCompare(a.eventDate ?? a.placedAt ?? "");
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bets, gameById, liveOnly, openOnly, result, week]);
 
   const totals = rows.reduce(
     (a, b) => {
@@ -63,9 +92,22 @@ export default function BetLedger({
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <select className={sel} style={inputStyle} value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="all">All bets</option>
-          <option value="open">Open</option>
+        <Toggle
+          label="Live"
+          count={liveCount}
+          active={liveOnly}
+          tone="live"
+          disabled={liveCount === 0}
+          onClick={() => setLiveOnly((v) => !v)}
+        />
+        <Toggle
+          label="Open"
+          count={openCount}
+          active={openOnly}
+          onClick={() => setOpenOnly((v) => !v)}
+        />
+        <select className={sel} style={inputStyle} value={result} onChange={(e) => setResult(e.target.value)}>
+          <option value="all">Any result</option>
           <option value="won">Won</option>
           <option value="lost">Lost</option>
           <option value="push">Push</option>
@@ -144,6 +186,51 @@ export default function BetLedger({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * A filter toggle that carries its own count, so an empty result is visible
+ * before you press it rather than after. "Live" disables itself when nothing
+ * is in progress instead of offering a filter that can only return nothing.
+ */
+function Toggle({
+  label,
+  count,
+  active,
+  onClick,
+  tone,
+  disabled,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+  tone?: "live";
+  disabled?: boolean;
+}) {
+  const accent = tone === "live" ? "var(--neg)" : "var(--accent)";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
+      style={{
+        background: active ? `color-mix(in srgb, ${accent} 18%, transparent)` : "var(--surface-2)",
+        borderColor: active ? accent : "var(--line-strong)",
+        color: active ? accent : "var(--ink-2)",
+      }}
+    >
+      {tone === "live" && (
+        <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: accent }} />
+      )}
+      {label}
+      <span className="tnum font-normal" style={{ color: "var(--muted)" }}>
+        {count}
+      </span>
+    </button>
   );
 }
 
