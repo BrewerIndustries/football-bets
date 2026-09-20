@@ -1,0 +1,16 @@
+[Unit]
+Description=Football Bets (prod)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dan
+WorkingDirectory=/opt/football-bets
+EnvironmentFile=/opt/football-bets/.env
+ExecStart=/opt/football-bets/node_modules/.bin/next start -p 4780
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
