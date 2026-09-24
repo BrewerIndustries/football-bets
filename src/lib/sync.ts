@@ -248,7 +248,7 @@ export async function syncKalshi(): Promise<KalshiSyncResult> {
       const meta = await marketMeta(cfg.base, c.ticker);
 
       let game: Game | null = null;
-      let pick = parsed && "pick" in parsed ? parsed.pick : null;
+      const pick = parsed && "pick" in parsed ? parsed.pick : null;
 
       if (parsed?.type === "game") {
         if (parsed.teams) {
