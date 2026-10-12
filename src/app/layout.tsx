@@ -5,6 +5,8 @@ export const metadata: Metadata = {
   title: "Football Bets",
   description:
     "Track football bets end to end — teams picked, wager, winnings and results — with Kalshi positions imported automatically and games graded from the live NFL schedule.",
+  // iOS "Add to Home Screen": short label under the icon (src/app/apple-icon.png).
+  appleWebApp: { capable: true, title: "Bets" },
 };
 
 export default function RootLayout({
